@@ -1,0 +1,5 @@
+*.astraplugin
+node_modules/
+dist/
+MANIFEST.json
+test/.build/
