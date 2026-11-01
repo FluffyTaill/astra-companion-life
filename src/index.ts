@@ -16,6 +16,8 @@ import * as import_node_child_process from "node:child_process";
 import { plugin, s as schema, tool } from "astra-plugin-sdk";
 import { PHRASES, CHARACTERS, LANGS, phraseFor } from "./phrases";
 import { GIFTS, HOBBIES, LEVELS, ACHIEVEMENTS } from "./phrases2";
+import { TRAITS, REACTIONS, CHARACTER_TRAITS, cleanPersona, persFrom, chronoOf, timeOf, styleText, callName, reactionGroup,
+  personaFromPrompt, characterCard } from "./persona";
 // the sky around her (tools/gen_life_assets.py); the things she holds (book.glb, cup.glb, plush.glb, hold.vrma,
 // hug.vrma in assets/) are left out of the build until PROPS_READY
 import STAR_PNG from "../assets/star.png";
@@ -48,6 +50,9 @@ var SOUL_DEFAULTS = { on: true, talk: true, pace: 1, character: "cheerful", name
   // things in her hands, the sky of the hour (in her pack); birthday: "MM-DD"; dndUntil: quiet until; plan: today's
   // plan typed on the page
   lang: "auto", weather: true, apps: true, appRules: [], pomodoro: { on: false, work: 25, rest: 5 }, custom: {}, voiceMood: true,
+  // persona: her personality in detail (src/persona.ts); null until made — on the first run from Astra's
+  // own personality (AI → Personality), then tuned on the page
+  persona: null,
   care: true, goalHours: 0, chatTone: false, aiWords: false, props: false, sky: true, birthday: "", dndUntil: 0, plan: "", planDay: "" };
 
 function loadDb() {
@@ -58,6 +63,7 @@ function loadDb() {
   const soul = { ...SOUL_DEFAULTS, ...s, quiet: { ...SOUL_DEFAULTS.quiet, ...s.quiet }, pomodoro: { ...SOUL_DEFAULTS.pomodoro, ...s.pomodoro } };
   if (!["auto", ...LANGS].includes(soul.lang)) soul.lang = "auto";
   if (!CHARACTERS.includes(soul.character)) soul.character = "cheerful";
+  soul.persona = soul.persona ? cleanPersona(soul.persona, soul.character) : null;
   return { soul };
 }
 
@@ -142,6 +148,10 @@ var PERSONALITIES = {
   tsundere: { weights: { sigh: 2, think: 1.3, heart: 0.7, call: 1.3, shy: 1.4 }, drift: { social: 1.2 }, talk: 1 }
 };
 var personality = (name) => PERSONALITIES[name] || PERSONALITIES.cheerful;
+// her behaviour from her personality in detail; the character's own table while there is none
+var persOf = (s) => (s.persona ? persFrom(s.persona) : personality(s.character));
+// her chronotype for moodOf, set each tick
+var chrono = "normal";
 
 // ── her needs and mood ──────────────────────────────────────────────────────
 // energy falls through the day (faster at night) and comes back in a nap or a night away; boredom
@@ -180,7 +190,7 @@ function saveSoul() {
 }
 
 function moodOf(s, hour = new Date().getHours()) {
-  const night = hour >= 23 || hour < 6;
+  const night = chronoOf(chrono, hour).night;
   if (s.energy < 25 || (night && s.energy < 50)) return "sleepy";
   if (s.social < 30) return "lonely";
   if (s.boredom > 65) return "bored";
@@ -193,7 +203,10 @@ function driftSoul(s, min, c, pers = PERSONALITIES.cheerful) {
   const hour = c.hour ?? new Date().getHours();
   const k = (n) => pers.drift?.[n] ?? 1;
   if (c.asleep) s.energy += 2.5 * min;
-  else s.energy -= (hour >= 22 || hour < 6 ? 0.3 : 0.12) * min * k("energy");
+  else s.energy -= chronoOf(pers.chrono || "normal", hour).drop * min * k("energy");
+  // her favourite time of day and weather lift her a little
+  if (pers.favTime && timeOf(hour) === pers.favTime) s.joy += 0.08 * min;
+  if (pers.favWeather && c.weather === pers.favWeather) s.joy += 0.1 * min;
   s.boredom += (c.music ? -1.5 : c.near ? -3 : 0.6 * k("boredom")) * min;
   if (c.away) s.social -= 0.4 * min * k("social");
   else if (c.here) s.social += 0.5 * min;
@@ -324,13 +337,18 @@ async function say(ctx, db, key, { force = false, vars = {} } = {}) {
   const s = db.soul, now = Date.now();
   if (!s.talk || quietNow(s) || s.dndUntil > now || GAMES.has(activity.proc) || activity.idleSec > 300) return false;
   if (soul.sulk && key !== "sulk" && key !== "sulkMakeup") return false;
-  const pers = personality(s.character);
-  if (!force && (now - soul.said < 15 * 60000 / pers.talk || Math.random() > 0.45 * pers.talk)) return false;
-  const text = phraseFor(langOf(s), key, s.character, { name: s.name, ...vars }, Math.random, s.custom?.[key]);
+  const pers = persOf(s);
+  // how strongly she answers this kind of thing: not at all, as usual, or more often
+  const r = pers.reactions?.[reactionGroup(key)] ?? 1;
+  if (r === 0 && key !== "sulkMakeup") return false;
+  if (!force && (now - soul.said < 15 * 60000 / pers.talk / r || Math.random() > 0.45 * pers.talk * r)) return false;
+  const mood = moodOf(soul);
+  const raw = phraseFor(langOf(s), key, s.character, { name: callName(s.persona, mood, s.name), ...vars }, Math.random, s.custom?.[key]);
+  const text = styleText(raw, s.persona, mood);
   if (!text) return false;
   soul.said = now;
   // the voice for the mood, when its command is there
-  let trigger = voiceTrigger(s, moodOf(soul));
+  let trigger = voiceTrigger(s, mood);
   if (trigger !== "anim_say" && ![...(ctx.activeTriggers || [])].some((a) => a === trigger || a === TRIGGER_PREFIX + trigger)) trigger = "anim_say";
   await ctx.fireTrigger(trigger, { text }).catch(() => {});
   return true;
@@ -677,7 +695,8 @@ async function extrasTick(ctx, db, e) {
     }
     return true; // a sulking girl does nothing else
   }
-  if (here && soul.social < 20 && now - (soul.noticedAt || now) > 45 * 60000 && free) {
+  const pe = persOf(db.soul);
+  if (here && soul.social < 20 && (pe.reactions?.ignore ?? 1) > 0 && now - (soul.noticedAt || now) > (pe.sulkAfter || 45) * 60000 && free) {
     Object.assign(soul, { sulk: true, sulkAt: now });
     const sad = stateFor({ names: ["fold_arms", "sad", "sigh"] }, have);
     if (sad) await play(sad);
@@ -1089,12 +1108,38 @@ async function lifePackTick(s, now, hour) {
   }
 }
 
+// ── Astra's personality ↔ hers ────────────────────────────────────────────────
+// Astra's AI personality (AI → Personality) is the system prompt in her settings; it is only read here.
+// Hers goes back to Astra's chat as a character card (Character Card V2) you import there.
+function astraPrompt() {
+  try {
+    return String(JSON.parse(import_node_fs.readFileSync(import_node_path.join(CFG, "settings.json"), "utf8"))?.ai?.system_prompt || "");
+  } catch {
+    return "";
+  }
+}
+var CARD_DIR = import_node_path.join(process.env.USERPROFILE || process.env.HOME || ".", "Documents", "Companion Life");
+function writeCard(s) {
+  const lang = langOf(s) === "ru" ? "ru" : "en";
+  const card = characterCard(s.persona, { name: s.name, lang, character: s.character });
+  import_node_fs.mkdirSync(CARD_DIR, { recursive: true });
+  const file = import_node_path.join(CARD_DIR, `${card.data.name.replace(/[\\/:*?"<>|]/g, "_")}.json`);
+  import_node_fs.writeFileSync(file, JSON.stringify(card, null, 2));
+  return file;
+}
+
 // ── the clock of it all ─────────────────────────────────────────────────────
 async function soulTick(ctx) {
   const db = loadDb();
   const s = db.soul;
   if (!s.on) return;
-  const pers = personality(s.character);
+  // her personality: made from Astra's own the first time
+  if (!s.persona) {
+    s.persona = cleanPersona(personaFromPrompt(astraPrompt(), s.character), s.character);
+    saveSettings(s);
+  }
+  const pers = persOf(s);
+  chrono = pers.chrono || "normal";
   const now = Date.now(), d = new Date(), hour = d.getHours(), day = dayKey(d);
   if (!soul.at) {
     loadSoul();
@@ -1120,7 +1165,8 @@ async function soulTick(ctx) {
   // her hobby and her restlessness make some pastimes likelier; hunger opens a snack any time
   const boost = { ...(soul.hobby ? HOBBIES[soul.hobby.kind]?.pastimes : {}) };
   if (soul.restless > 70) for (const k of ["spin", "peek", "stretch", "yay"]) boost[k] = (boost[k] || 1) * 2;
-  const c = { hour, day, music, here, away, near: activity.over >= 10, asleep: dozing.on, snacks: soul.snacks, hungry: soul.hunger > 75, boost };
+  const c = { hour, day, music, here, away, near: activity.over >= 10, asleep: dozing.on, snacks: soul.snacks, hungry: soul.hunger > 75, boost,
+    weather: soul.weather?.kind || "" };
   driftSoul(soul, min, c, pers);
   if (ev.pat) {
     Object.assign(soul, { joy: clamp(soul.joy + 15), social: clamp(soul.social + 20), boredom: clamp(soul.boredom - 20), bond: clamp(soul.bond + 0.5 * ev.pat) });
@@ -1290,7 +1336,7 @@ async function soulTick(ctx) {
   if (here && s.play && (mood === "bored" || mood === "happy") && now - soul.playAt > 50 * 60000 && Math.random() < 0.35) {
     if (await startGame(ctx, db, Math.random() < 0.5 ? "hide" : "catch", have, now)) return;
   }
-  if (here && s.questions && (mood === "calm" || mood === "happy") && now - soul.questionAt > 90 * 60000 && Math.random() < 0.25) {
+  if (here && s.questions && (mood === "calm" || mood === "happy") && now - soul.questionAt > 90 * 60000 && Math.random() < 0.25 * (pers.questions || 1)) {
     soul.questionAt = now;
     const t = stateFor({ names: ["think", "thinking"] }, have);
     if (t) await play(t);
@@ -1515,11 +1561,12 @@ function getState(ctx) {
     hobby: soul.hobby ? HOBBIES[soul.hobby.kind]?.[lang] || soul.hobby.kind : "", wish: soul.wish?.kind || "", sulk: soul.sulk,
     pomo: soul.pomo, weather: soul.weather, sys, plan: soul.planDay === dayKey() ? soul.plan : "", aiBlocked: soul.aiBlocked,
     canAi: typeof ctx?.sendChatMessage === "function", packPending: lifePack.pending,
+    persona: db.soul.persona || cleanPersona({}, db.soul.character), traits: TRAITS, reactions: REACTIONS, astraPrompt: astraPrompt().slice(0, 600), cardDir: CARD_DIR,
     keys: Object.keys(PHRASES.ru), usual: { arrive: median(Object.values(soul.arrivals).slice(-7)), bed: median(Object.values(soul.bedtimes).slice(-7)) } };
 }
 
 // settings worth sharing: her character, her words, your rules (not her memories)
-var SHARED = ["character", "name", "custom", "appRules", "quiet", "pomodoro", "lang", "voiceMood", "props", "sky"];
+var SHARED = ["character", "persona", "name", "custom", "appRules", "quiet", "pomodoro", "lang", "voiceMood", "props", "sky"];
 
 export const app = plugin({
   id: "companion-life",
@@ -1535,10 +1582,14 @@ export const app = plugin({
       }
     }),
     companion_mood: tool({
-      description: "Companion Life: how the avatar feels now — her mood, needs, attachment level, hobby, today's diary. Как она себя чувствует.",
+      description: "Companion Life: how the avatar (you, in character) feels right now — mood, needs, attachment, hobby, wish, whether she sulks — and how she speaks. Call it to answer in her current mood. Как она себя чувствует сейчас и как говорит.",
       input: schema.object({}),
-      run: async () => JSON.stringify({ ...soulNow(), level: friendship(soul.bond, langOf(loadDb().soul)).name,
-        hobby: soul.hobby?.kind || "", wish: soul.wish?.kind || "", sulk: soul.sulk })
+      run: async () => {
+        const s = loadDb().soul, mood = moodOf(soul), p = s.persona;
+        return JSON.stringify({ ...soulNow(), level: friendship(soul.bond, langOf(s)).name,
+          hobby: soul.hobby?.kind || "", wish: soul.wish?.kind || "", sulk: soul.sulk, callUser: callName(p, mood, s.name),
+          speech: p ? { tics: p.tics, emoji: p.emoji, short: p.short } : null, name: p?.herName || "" });
+      }
     })
   },
   triggers: {
@@ -1589,7 +1640,11 @@ export const app = plugin({
           }
         }
         if ("pace" in patch) s.pace = Math.max(0.3, Math.min(3, Number(patch.pace) || 1));
-        if ("character" in patch && CHARACTERS.includes(patch.character)) s.character = patch.character;
+        // a character is a starting point: its traits replace the sliders, the rest of her personality stays
+        if ("character" in patch && CHARACTERS.includes(patch.character)) {
+          s.character = patch.character;
+          s.persona = cleanPersona({ ...(s.persona || {}), traits: { ...CHARACTER_TRAITS[patch.character] } }, s.character);
+        }
         if ("name" in patch) s.name = String(patch.name || "").trim().slice(0, 30);
         if (patch.quiet) {
           if ("on" in patch.quiet) s.quiet.on = !!patch.quiet.on;
@@ -1598,6 +1653,33 @@ export const app = plugin({
         saveSettings(s);
         soul.next = 0;
         return s;
+      },
+      // her personality: a patch of it (traits, reactions and calls merge)
+      setPersona: async (p) => {
+        const s = loadDb().soul, cur = s.persona || cleanPersona({}, s.character), patch = p.patch || {};
+        s.persona = cleanPersona({ ...cur, ...patch, traits: { ...cur.traits, ...patch.traits }, reactions: { ...cur.reactions, ...patch.reactions },
+          calls: { ...cur.calls, ...patch.calls }, likes: patch.likes ? { ...cur.likes, ...patch.likes } : cur.likes }, s.character);
+        saveSettings(s);
+        return s.persona;
+      },
+      // from Astra's AI personality: the traits from its words, its text as her story (her speech and likes stay)
+      pullAstra: async () => {
+        const prompt = astraPrompt();
+        if (!prompt) throw new Error("no-prompt");
+        const s = loadDb().soul, cur = s.persona || cleanPersona({}, s.character);
+        s.persona = cleanPersona({ ...cur, ...personaFromPrompt(prompt, s.character) }, s.character);
+        saveSettings(s);
+        return s.persona;
+      },
+      // her card for Astra's chat: written to Documents\Companion Life, imported in AI → Personality
+      saveCard: async () => {
+        const s = loadDb().soul;
+        if (!s.persona) s.persona = cleanPersona(personaFromPrompt(astraPrompt(), s.character), s.character);
+        return writeCard(s);
+      },
+      showCard: async (p) => {
+        import_node_child_process.spawn("explorer.exe", [`/select,${String(p.file || CARD_DIR)}`], { detached: true, stdio: "ignore" }).unref();
+        return true;
       },
       // quiet time from the page (minutes; 0 ends it)
       quiet: async (p) => {
@@ -1652,7 +1734,7 @@ export const app = plugin({
   healthCheck: () => ({ healthy: true, status: "ok" })
 });
 // for test/*.test.mjs
-export const internals = { PROPS_READY, moodOf, driftSoul, pickPastime, stateFor, bondAfterAbsence, quietNow, PASTIMES, PHRASES, CHARACTERS, phraseFor,
+export const internals = { persOf, astraPrompt, cleanPersona, persFrom, styleText, callName, reactionGroup, personaFromPrompt, characterCard, chronoOf, PROPS_READY, moodOf, driftSoul, pickPastime, stateFor, bondAfterAbsence, quietNow, PASTIMES, PHRASES, CHARACTERS, phraseFor,
   standing, soul, soulNow, soulTick, diaryToday, spanText, PERSONALITIES, activity: () => activity, appKindOf, friendship, greetingKey, lifeBlock,
   writeLifeBlock, voiceTrigger, langOf, ACHIEVEMENTS, LEVELS, HOBBIES, GIFTS, totalsOf, lateHour, median };
 if (require.main === module) app.run();

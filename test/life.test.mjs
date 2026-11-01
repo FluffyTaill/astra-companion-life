@@ -192,3 +192,42 @@ test("words: every situation of the second book in all three languages", () => {
   }
   for (const key of Object.keys(PHRASES.ru)) assert.ok(PHRASES.ja[key]?.any?.length, `ja:${key}`);
 });
+
+test("her personality: traits drive her, her manner shapes her words, Astra's personality seeds it, a card carries it to the chat", () => {
+  const { cleanPersona, persFrom, styleText, callName, reactionGroup, personaFromPrompt, characterCard, chronoOf } = internals;
+  // a character is a starting point; out-of-range values are held in range
+  const p = cleanPersona({ traits: { energy: 140, shy: -5 }, tics: "ня, ~", ticRate: 100, calls: { happy: "Данечка" } }, "shy");
+  assert.deepEqual([p.traits.energy, p.traits.shy, p.traits.talk], [100, 0, 30]);
+  assert.deepEqual(p.tics, ["ня", "~"]);
+  // shy and lazy vs bold and lively
+  const quiet = persFrom(cleanPersona({ traits: { shy: 90, energy: 10, talk: 10 } }));
+  const loud = persFrom(cleanPersona({ traits: { shy: 10, energy: 90, talk: 90 } }));
+  assert.ok(quiet.weights.shy > loud.weights.shy && quiet.weights.nap > loud.weights.nap && loud.weights.spin > quiet.weights.spin);
+  assert.ok(loud.talk > quiet.talk && quiet.drift.energy > loud.drift.energy);
+  // loves and dislikes
+  const liked = persFrom(cleanPersona({ likes: { hum: 1, phone: -1 } }));
+  assert.ok(liked.weights.hum > 2 && liked.weights.phone < 0.2);
+  // impatient and mischievous sulks sooner
+  assert.ok(persFrom(cleanPersona({ traits: { mischief: 90, patience: 10 } })).sulkAfter < persFrom(cleanPersona({ traits: { mischief: 10, patience: 90 } })).sulkAfter);
+  // an owl is sleepy in the morning, a lark at night
+  assert.equal(chronoOf("owl", 7).night, true);
+  assert.equal(chronoOf("owl", 1).night, false);
+  assert.equal(chronoOf("lark", 22).night, true);
+  // her manner: a word at the end, an emoji, a short phrase; what she calls you in this mood
+  assert.equal(styleText("Привет! Я тут.", p, "happy", () => 0), "Привет! Я тут, ня.");
+  assert.equal(styleText("Привет, Даня. Как дела?", cleanPersona({ short: true }), "calm", () => 0.99), "Привет, Даня.");
+  assert.equal(callName(p, "happy", "Даня"), "Данечка");
+  assert.equal(callName(p, "calm", "Даня"), "Даня");
+  assert.deepEqual([reactionGroup("pat"), reactionGroup("gameJealous"), reactionGroup("lateDeep"), reactionGroup("hum")], ["pat", "game", "late", ""]);
+  // Astra's personality: its words move the traits, its text is her story, her name is read from it
+  const a = personaFromPrompt("You are Astra. Your character: energetic, caring and shy. Use emoji.", "cheerful");
+  assert.equal(a.herName, "Astra");
+  assert.ok(a.traits.energy > 65 && a.traits.affection > 75 && a.traits.shy > 25 && a.emoji);
+  assert.ok(a.story.startsWith("You are Astra"));
+  // the card: Character Card V2, her name, her character and manner in the system prompt, the mood tool
+  const card = characterCard(cleanPersona({ ...a, tics: ["ня"] }), { name: "Даня", lang: "ru" });
+  assert.equal(card.spec, "chara_card_v2");
+  assert.equal(card.data.name, "Astra");
+  assert.ok(/companion_mood/.test(card.data.system_prompt) && /ня/.test(card.data.system_prompt) && /Даня/.test(card.data.system_prompt));
+  assert.ok(card.data.system_prompt.includes("You are Astra. Your character"));
+});

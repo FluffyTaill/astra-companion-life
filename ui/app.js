@@ -118,6 +118,49 @@ Object.assign(I18N.en, {
   share: "Share settings", shareHint: "Character, phrases, rules, tomato timer and language — not her memories.", exportBtn: "Export", importBtn: "Import",
   importPh: "paste the settings JSON here", copied: "Copied"
 });
+// her personality in detail
+Object.assign(I18N.ru, {
+  persona: "Её личность", personaHint: "Сначала возьми основу — из личности Astra («ИИ → Личность») или из характера выше, — потом подстрой точечно. Всё здесь влияет и на её поведение, и на её слова.",
+  pull: "⤓ Взять из Astra", pullHint: "Прочитает системный промпт из «ИИ → Личность»: черты по его словам, сам текст — в её историю. Манера речи и любимое не трогаются.",
+  pulled: "Взято из личности Astra", noPrompt: "В «ИИ → Личность» пока нет текста",
+  herName: "Её имя", herNamePh: "например, Астра",
+  traitsTitle: "Черты",
+  traitNames: { talk: ["молчаливая", "разговорчивая"], energy: ["неторопливая", "энергичная"], shy: ["смелая", "застенчивая"], affection: ["сдержанная", "ласковая"],
+    mischief: ["мягкая", "вредная"], curiosity: ["равнодушная", "любопытная"], patience: ["нетерпеливая", "терпеливая"] },
+  dayTitle: "Её день", chrono: { normal: "обычный режим", lark: "жаворонок", owl: "сова" },
+  favTime: "Любимое время", favWeather: "Любимая погода", none: "—",
+  times: { morning: "утро", day: "день", evening: "вечер", night: "ночь" }, weathers: { clear: "ясно", cloud: "облачно", rain: "дождь", snow: "снег" },
+  likesTitle: "Занятия: любит / не любит", likesHint: "Нажимай: обычное → 💖 любит → ✕ не любит.",
+  speechTitle: "Манера речи", tics: "Словечки (через запятую)", ticsPh: "~, ня, хи-хи", ticRate: "Как часто", emoji: "Эмодзи", short: "Коротко, одной фразой",
+  callsTitle: "Как зовёт тебя", callsMood: { happy: "когда рада", calm: "обычно", sad: "когда грустно или сонно" }, callsPh: "пусто — твоё имя",
+  storyTitle: "Кто она", storyPh: "Её история, характер, что важно — своими словами. Этот текст уходит и в чат Astra.",
+  loves: "Любит", dislikes: "Не любит",
+  reactTitle: "Как сильно реагирует", react: { pat: "когда гладишь", back: "когда приходишь", game: "на игры", late: "когда сидишь поздно", music: "на музыку", work: "на работу и программы", ignore: "когда не замечаешь (обиды)" },
+  reactLevels: ["нет", "обычно", "сильно"],
+  card: "В чат Astra", cardHint: "Чтобы встроенный ИИ отвечал её характером: сохрани карточку и импортируй её в Astra — «ИИ → Личность → Импорт карточки персонажа». Карточка просит ИИ сверяться с её настроением сейчас (инструмент companion_mood). Изменил личность — сохрани и импортируй снова.",
+  cardSave: "Сохранить карточку", cardSaved: (f) => `Сохранено: ${f}`, cardShow: "Показать файл"
+});
+Object.assign(I18N.en, {
+  persona: "Her personality", personaHint: "Take a base first — from Astra's personality (AI → Personality) or the character above — then fine-tune. Everything here shapes both what she does and what she says.",
+  pull: "⤓ Take from Astra", pullHint: "Reads the system prompt in AI → Personality: the traits from its words, the text itself becomes her story. Her speech and likes stay.",
+  pulled: "Taken from Astra's personality", noPrompt: "AI → Personality has no text yet",
+  herName: "Her name", herNamePh: "e.g. Astra",
+  traitsTitle: "Traits",
+  traitNames: { talk: ["quiet", "talkative"], energy: ["unhurried", "energetic"], shy: ["bold", "shy"], affection: ["reserved", "affectionate"],
+    mischief: ["gentle", "mischievous"], curiosity: ["indifferent", "curious"], patience: ["impatient", "patient"] },
+  dayTitle: "Her day", chrono: { normal: "usual hours", lark: "early bird", owl: "night owl" },
+  favTime: "Favourite time", favWeather: "Favourite weather", none: "—",
+  times: { morning: "morning", day: "day", evening: "evening", night: "night" }, weathers: { clear: "clear", cloud: "cloudy", rain: "rain", snow: "snow" },
+  likesTitle: "Pastimes: loves / dislikes", likesHint: "Click: usual → 💖 loves → ✕ dislikes.",
+  speechTitle: "Her speech", tics: "Little words (comma-separated)", ticsPh: "~, nya, hehe", ticRate: "How often", emoji: "Emoji", short: "Short, one sentence",
+  callsTitle: "What she calls you", callsMood: { happy: "when happy", calm: "usually", sad: "when sad or sleepy" }, callsPh: "empty — your name",
+  storyTitle: "Who she is", storyPh: "Her story, character, what matters — in your words. This text goes to Astra's chat too.",
+  loves: "Loves", dislikes: "Dislikes",
+  reactTitle: "How strongly she reacts", react: { pat: "to pats", back: "when you come back", game: "to games", late: "when you stay up late", music: "to music", work: "to work and programs", ignore: "when ignored (sulking)" },
+  reactLevels: ["no", "usual", "strong"],
+  card: "To Astra's chat", cardHint: "So that the built-in AI answers in her character: save the card and import it in Astra — AI → Personality → Import a character card. The card asks the AI to check her current mood (the companion_mood tool). Changed her personality — save and import again.",
+  cardSave: "Save the card", cardSaved: (f) => `Saved: ${f}`, cardShow: "Show the file"
+});
 let lang = (() => {
   try { return localStorage.getItem("cl-lang") || (navigator.language || "ru").slice(0, 2); } catch { return "ru"; }
 })();
@@ -239,6 +282,73 @@ function diaryCard() {
       <div class="muted" style="margin-top:4px;font-size:12px">${cols.work}: ${min(d.work)} · ${cols.pats}: ${d.pats} · ${cols.naps}: ${d.naps} · ${cols.music}: ${min(d.music)}
         · ${cols.games}: ${d.games} · ${cols.chats}: ${d.chats} · ${cols.played}: ${d.played}${d.late ? ` · ${cols.late}: ${min(d.late)}` : ""}</div></div>`).join("")
       : `<div class="muted">${T("diaryEmpty")}</div>`}
+  </div>`;
+}
+
+let cardFile = "";
+function personaCard() {
+  const P = st.persona || {}, Tr = P.traits || {}, names = T("traitNames"), R = P.reactions || {}, C = P.calls || {};
+  const sel = (key, opts, val, labels) => `<select class="text" style="width:auto" onchange="setPersona({${key}: this.value})">${opts.map((o) =>
+    `<option value="${o}" ${val === o ? "selected" : ""}>${o ? labels[o] : T("none")}</option>`).join("")}</select>`;
+  const slider = (k) => `<div class="opt" style="width:100%;max-width:520px;justify-content:space-between">
+    <span class="muted" style="width:110px;text-align:right">${names[k][0]}</span>
+    <input type="range" min="0" max="100" value="${Tr[k] ?? 50}" style="flex:1" onchange="setPersona({traits: {${k}: +this.value}})">
+    <span class="muted" style="width:110px">${names[k][1]}</span></div>`;
+  const likes = (st.pastimes || []).filter((p) => !["read", "tea", "hug"].includes(p.id)).map((p) => {
+    const v = P.likes?.[p.id] || 0;
+    return `<span class="chip ${v > 0 ? "on" : ""}" style="${v < 0 ? "text-decoration:line-through;opacity:.6" : ""}" onclick="cycleLike('${p.id}')">${v > 0 ? "💖 " : v < 0 ? "✕ " : ""}${esc(T("names")[p.id] || p.id)}</span>`;
+  }).join("");
+  const react = (k) => `<div class="opt" style="width:100%;max-width:520px;justify-content:space-between"><span>${T("react")[k]}</span>
+    <span class="row" style="gap:4px">${[0, 1, 2].map((n) => `<span class="chip ${(R[k] ?? 1) === n ? "on" : ""}" onclick="setPersona({reactions: {${k}: ${n}}})">${T("reactLevels")[n]}</span>`).join("")}</span></div>`;
+  const astra = st.astraPrompt || "";
+  return `<div class="card">
+    <h2>${T("persona")}</h2>
+    <div class="muted" style="margin-bottom:10px">${T("personaHint")}</div>
+    <div class="row" style="margin-bottom:6px"><button class="btn primary" onclick="pullAstra()" ${astra ? "" : "disabled"}>${T("pull")}</button>
+      <span class="muted">${astra ? T("pullHint") : T("noPrompt")}</span></div>
+    ${astra ? `<details style="margin-bottom:10px"><summary class="muted" style="font-weight:600">«${esc(astra.slice(0, 70))}…»</summary><p style="white-space:pre-wrap">${esc(astra)}</p></details>` : ""}
+    <div class="row" style="margin:10px 0">${T("herName")} <input class="text" style="width:200px" value="${esc(P.herName || "")}" placeholder="${esc(T("herNamePh"))}" onchange="setPersona({herName: this.value})"></div>
+
+    <h2 style="margin-top:14px">${T("traitsTitle")}</h2>
+    <div style="display:grid;gap:6px">${(st.traits || []).map(slider).join("")}</div>
+
+    <h2 style="margin-top:14px">${T("dayTitle")}</h2>
+    <div class="opts">
+      ${sel("chrono", ["normal", "lark", "owl"], P.chrono || "normal", T("chrono"))}
+      <div class="opt">${T("favTime")} ${sel("favTime", ["", "morning", "day", "evening", "night"], P.favTime || "", T("times"))}</div>
+      <div class="opt">${T("favWeather")} ${sel("favWeather", ["", "clear", "cloud", "rain", "snow"], P.favWeather || "", T("weathers"))}</div>
+    </div>
+
+    <h2 style="margin-top:14px">${T("likesTitle")}</h2>
+    <div class="muted" style="margin-bottom:6px">${T("likesHint")}</div>
+    <div class="row">${likes}</div>
+
+    <h2 style="margin-top:14px">${T("speechTitle")}</h2>
+    <div class="opts">
+      <div class="opt">${T("tics")} <input class="text" style="width:180px" value="${esc((P.tics || []).join(", "))}" placeholder="${esc(T("ticsPh"))}" onchange="setPersona({tics: this.value})"></div>
+      <div class="opt">${T("ticRate")} <input type="range" min="0" max="100" value="${P.ticRate ?? 30}" onchange="setPersona({ticRate: +this.value})"> ${P.ticRate ?? 30}%</div>
+      <div class="opt"><div class="switch ${P.emoji ? "on" : ""}" onclick="setPersona({emoji: ${!P.emoji}})"></div>${T("emoji")}</div>
+      <div class="opt"><div class="switch ${P.short ? "on" : ""}" onclick="setPersona({short: ${!P.short}})"></div>${T("short")}</div>
+      <button class="btn" onclick="tryIt('pat')">${T("tryIt")}</button>
+    </div>
+    <div class="opts" style="margin-top:8px">${T("callsTitle")}:
+      ${["happy", "calm", "sad"].map((m) => `<div class="opt">${T("callsMood")[m]} <input class="text" style="width:130px" value="${esc(C[m] || "")}" placeholder="${esc(T("callsPh"))}" onchange="setPersona({calls: {${m}: this.value}})"></div>`).join("")}
+    </div>
+
+    <h2 style="margin-top:14px">${T("storyTitle")}</h2>
+    <textarea id="storyText" class="text" rows="5" placeholder="${esc(T("storyPh"))}" onchange="setPersona({story: this.value})">${esc(P.story || "")}</textarea>
+    <div class="opts" style="margin-top:8px">
+      <div class="opt" style="flex:1">${T("loves")} <input class="text" style="flex:1" value="${esc(P.loves || "")}" onchange="setPersona({loves: this.value})"></div>
+      <div class="opt" style="flex:1">${T("dislikes")} <input class="text" style="flex:1" value="${esc(P.dislikes || "")}" onchange="setPersona({dislikes: this.value})"></div>
+    </div>
+
+    <h2 style="margin-top:14px">${T("reactTitle")}</h2>
+    <div style="display:grid;gap:6px">${(st.reactions || []).map(react).join("")}</div>
+
+    <h2 style="margin-top:14px">${T("card")}</h2>
+    <div class="muted" style="margin-bottom:8px">${T("cardHint")}</div>
+    <div class="row"><button class="btn primary" onclick="saveCard()">${T("cardSave")}</button>
+      ${cardFile ? `<button class="btn" onclick="showCard()">${T("cardShow")}</button><span class="muted">${esc(T("cardSaved")(cardFile))}</span>` : ""}</div>
   </div>`;
 }
 
@@ -393,6 +503,7 @@ function render() {
   ${bondCard()}
   ${dayCard()}
   ${characterCard()}
+  ${personaCard()}
   ${rulesCard()}
   ${moreCard()}
   ${S.apps ? appRulesCard() : ""}
@@ -404,6 +515,30 @@ function render() {
   ${shareCard()}`;
 }
 
+async function setPersona(patch) {
+  st.persona = await call("setPersona", { patch });
+  render();
+}
+function cycleLike(id) {
+  const v = st.persona?.likes?.[id] || 0;
+  setPersona({ likes: { [id]: v === 0 ? 1 : v === 1 ? -1 : 0 } });
+}
+async function pullAstra() {
+  try {
+    st.persona = await call("pullAstra");
+    toast(T("pulled"));
+    render();
+  } catch {
+    toast(T("noPrompt"));
+  }
+}
+async function saveCard() {
+  cardFile = await call("saveCard");
+  render();
+}
+async function showCard() {
+  await call("showCard", { file: cardFile });
+}
 async function quiet(minutes) {
   await call("quiet", { minutes });
   await refresh();
