@@ -282,3 +282,47 @@ test("backups: a copy of her settings and memories in her Documents folder, brou
   assert.equal(soul.totals.fed, 7);
   assert.throws(() => restoreBackup(settings));
 });
+
+test("the slower life: attachment on a daily budget, a shop, health, chat games, a weekly letter, the month and year", async () => {
+  const M = await import("./.build/more.cjs");
+  // one day of everything cannot give more than the day's budget, and closer means slower
+  const s = { bond: 10 };
+  for (let i = 0; i < 100; i++) M.gainBondOn(s, 1, "d1");
+  const budget = M.BOND_DAY * (1 - 10 / 110);
+  assert.ok(s.bond - 10 <= budget + 1e-9 && s.bond - 10 > 0.9 * budget);
+  const close = { bond: 80 };
+  for (let i = 0; i < 100; i++) M.gainBondOn(close, 1, "d1");
+  assert.ok(close.bond - 80 < 1);
+  // from new to soul mates takes weeks of good days, not an afternoon
+  const b = { bond: 10 };
+  let days = 0;
+  while (b.bond < 90 && days < 400) M.gainBondOn(b, 99, `d${++days}`);
+  assert.ok(days > 45 && days < 120, `${days} days`);
+  // the shop: locked by level, then by coins
+  assert.equal(M.canBuy(M.PRESENTS.necklace, 1, 999), "locked");
+  assert.equal(M.canBuy(M.PRESENTS.flower, 0, 3), "coins");
+  assert.equal(M.canBuy(M.PRESENTS.flower, 0, 30), "");
+  // health: hunger and no rest wear her down, sleep brings her back
+  const h = { health: 50, hunger: 95, energy: 10 };
+  M.healthDrift(h, 60, false);
+  assert.ok(h.health < 50 && M.sick({ health: 39 }) && !M.sick({ health: 40 }));
+  assert.ok(M.healthDrift({ health: 50, hunger: 20, energy: 60 }, 60, true) > 50);
+  // rock-paper-scissors in any of her languages
+  assert.deepEqual(M.rps("камень", () => 0.5), { you: "rock", her: "paper", result: "her" });
+  assert.equal(M.rps("ножницы", () => 0.5).result, "you");
+  assert.equal(M.rps("hello"), null);
+  // guess the number: higher / lower, three tries
+  let g = M.guess(null, NaN, 0, () => 0.55).game;
+  assert.equal(g.secret, 6);
+  assert.equal(M.guess(g, 3, 1).answer, "higher");
+  g = M.guess(g, 3, 1).game;
+  assert.equal(M.guess(g, 6, 2).answer, "right");
+  // the weekly letter and the month
+  const week = [{ day: "2026-11-01", work: 300, pats: 4, fed: 2, music: 60, played: 1 }, { day: "2026-11-02", work: 100, pats: 9, fed: 0, music: 0, played: 3 }];
+  const letter = M.weekLetter(week, { lang: "ru", name: "Даня", her: "Астра", level: "друзья" });
+  assert.ok(letter.startsWith("Даня,") && /13 раз/.test(letter) && /2026-11-02/.test(letter) && letter.endsWith("— Астра 💌"));
+  const months = M.foldDay({}, "2026-10-20", { work: 120, pats: 3, fed: 1 });
+  const t = M.statsFor("2026-10", months, { "2026-10-30": { work: 60, pats: 2 }, "2026-11-01": { work: 500 } });
+  assert.deepEqual([t.work, t.pats, t.fed, t.days], [180, 5, 1, 2]);
+  assert.equal(M.statsFor("2026", months, {}).pats, 3);
+});

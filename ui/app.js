@@ -190,6 +190,35 @@ Object.assign(I18N.en, {
   backupConfirm: "Bring everything back as it was in this backup? The current state is saved as a separate backup first.", backupDone: "Restored",
   restoreOffer: (d) => `Found a backup from ${d} — looks like the plugin was reinstalled. Bring back her settings and memory?`, restoreYes: "Restore", restoreNo: "Start fresh"
 });
+// the slower life: coins, the shop, presents, health, her memory of you, the album, the month and year
+Object.assign(I18N.ru, {
+  coins: (n) => `🪙 ${n}`, coinsHint: "Монетки копятся сами: 1 за 10 минут вместе, 5 за исполненное желание, ещё за выигранные игры.",
+  locked: (l) => `🔒 откроется: ${l}`, cost: (c) => `${c} 🪙`, needCoins: "Не хватает монеток", needLevel: "Ещё не открыто — нужен уровень отношений повыше",
+  presentsTitle: "Подарки для неё", presentsHint: "Купи ей что-нибудь на монетки — она обрадуется, станет чуточку ближе, и вещь останется у неё.",
+  thingsTitle: "Её вещи", healthNow: (h) => `здоровье: ${h}`, illNow: "приболела — покорми, напои чаем, дай поспать",
+  bondToday: (g) => `сегодня отношения выросли на ${g.toFixed(1)} — за день не больше 3, и чем ближе вы, тем медленнее`,
+  memTitle: "Что она о тебе помнит", memHint: "Расскажи о себе в чате Astra — она запомнит важное (любимое, имена, даты, планы) и будет иногда вспоминать. Можно добавить и здесь.",
+  memAdd: "Запомнить", memPh: "например: люблю клубничное мороженое", memEmpty: "Пока ничего.",
+  albumTitle: "Фотоальбом", albumHint: "В особые моменты (новый уровень, достижение, подарок, письмо) плагин сохраняет снимок её окна в «Документы\\Companion Life\\album». В снимок попадает и то, что за ней на экране, поэтому по умолчанию выключено.",
+  albumOn: "Снимать особые моменты", albumOpen: "Открыть альбом",
+  statsTitle: "Итоги", statsMonth: "Этот месяц", statsPrev: "Прошлый месяц", statsYear: (y) => `${y} год`,
+  statsCols: { days: "дней вместе", work: "за компьютером", pats: "поглаживаний", fed: "раз покормил", music: "музыки", played: "мини-игр", late: "после полуночи" },
+  chatGames: "В чате Astra с ней можно поиграть в «камень-ножницы-бумага» и «угадай число», покормить её или попросить поиграть в прятки — просто напиши."
+});
+Object.assign(I18N.en, {
+  coins: (n) => `🪙 ${n}`, coinsHint: "Coins add up by themselves: 1 per 10 minutes together, 5 for a granted wish, more for games won.",
+  locked: (l) => `🔒 opens at: ${l}`, cost: (c) => `${c} 🪙`, needCoins: "Not enough coins", needLevel: "Not open yet — your friendship needs to grow",
+  presentsTitle: "Presents for her", presentsHint: "Buy her something with coins — she is delighted, a little closer, and keeps it.",
+  thingsTitle: "Her things", healthNow: (h) => `health: ${h}`, illNow: "a bit ill — feed her, give her tea, let her sleep",
+  bondToday: (g) => `your friendship grew by ${g.toFixed(1)} today — no more than 3 a day, and slower the closer you are`,
+  memTitle: "What she remembers about you", memHint: "Tell her about yourself in Astra's chat — she remembers what matters (favourites, names, dates, plans) and brings it up now and then. You can add here too.",
+  memAdd: "Remember", memPh: "e.g. I love strawberry ice cream", memEmpty: "Nothing yet.",
+  albumTitle: "Photo album", albumHint: "At special moments (a new level, an achievement, a present, a letter) the plugin saves a picture of her window to Documents\\Companion Life\\album. What is behind her on screen shows too, so it is off by default.",
+  albumOn: "Take pictures of special moments", albumOpen: "Open the album",
+  statsTitle: "Totals", statsMonth: "This month", statsPrev: "Last month", statsYear: (y) => `${y}`,
+  statsCols: { days: "days together", work: "at the computer", pats: "pats", fed: "times fed", music: "music", played: "little games", late: "after midnight" },
+  chatGames: "In Astra's chat you can play rock-paper-scissors and guess-the-number with her, feed her, or ask her for hide-and-seek — just write."
+});
 let lang = (() => {
   try { return localStorage.getItem("cl-lang") || (navigator.language || "ru").slice(0, 2); } catch { return "ru"; }
 })();
@@ -314,12 +343,63 @@ function diaryCard() {
   </div>`;
 }
 
+// an item of the shop: open, locked by level, or costing coins
+function shopButton(it, onclick) {
+  const L = st.level || {}, levels = L.levels || [];
+  const locked = (L.index ?? 0) < (it.level || 0);
+  const poor = !locked && (st.coins || 0) < (it.cost || 0);
+  const tag = locked ? `<span class="muted">${T("locked")(esc(levels[it.level] || it.level))}</span>` : it.cost ? `<span class="muted">${T("cost")(it.cost)}</span>` : "";
+  return `<button class="btn" ${locked || poor ? `style="opacity:.5" title="${locked ? T("needLevel") : T("needCoins")}"` : ""} ${locked ? "disabled" : ""} onclick="${onclick}">${it.icon} ${esc(it.name)} ${tag}</button>`;
+}
 function feedCard() {
   const F = st.foods || [], h = st.hunger ?? 0;
   return `<div class="card">
-    <h2>${T("feedTitle")} <span class="muted">· ${h < 15 ? T("fullNow") : T("hungerNow")(h)}</span></h2>
-    <div class="muted" style="margin-bottom:10px">${T("feedHint")}</div>
-    <div class="row">${F.map((f) => `<button class="btn" onclick="feedHer('${f.id}')">${f.icon} ${esc(f.name)}</button>`).join("")}</div>
+    <h2>${T("feedTitle")} <span class="muted">· ${h < 15 ? T("fullNow") : T("hungerNow")(h)} · ${st.ill ? `🤒 ${T("illNow")}` : T("healthNow")(st.health ?? 100)} · ${T("coins")(st.coins || 0)}</span></h2>
+    <div class="muted" style="margin-bottom:10px">${T("feedHint")} ${T("coinsHint")}</div>
+    <div class="row">${F.map((f) => shopButton(f, `feedHer('${f.id}')`)).join("")}</div>
+    <h2 style="margin-top:14px">${T("presentsTitle")}</h2>
+    <div class="muted" style="margin-bottom:8px">${T("presentsHint")}</div>
+    <div class="row">${(st.presents || []).map((p) => shopButton(p, `giveHer('${p.id}')`)).join("")}</div>
+    ${(st.things || []).length ? `<div class="row" style="margin-top:10px"><span class="muted">${T("thingsTitle")}:</span> ${st.things.map((t) => `<span title="${esc(t.day)}">${t.icon}</span>`).join(" ")}</div>` : ""}
+    <div class="muted" style="margin-top:10px">💬 ${T("chatGames")}</div>
+  </div>`;
+}
+
+function memoryCard() {
+  const M = st.memories || [];
+  return `<div class="card">
+    <h2>${T("memTitle")}</h2>
+    <div class="muted" style="margin-bottom:8px">${T("memHint")}</div>
+    ${M.length ? M.slice(0, 30).map((m) => `<div class="row" style="justify-content:space-between;padding:4px 0;border-top:1px solid var(--line)">
+      <span>${esc(m.text)} <span class="muted">· ${esc(m.day)}</span></span><button class="btn danger" onclick="forget(${JSON.stringify(m.text).replace(/"/g, "&quot;")})">✕</button></div>`).join("")
+      : `<div class="muted">${T("memEmpty")}</div>`}
+    <div class="row" style="margin-top:8px"><input id="memText" class="text" style="flex:1" placeholder="${esc(T("memPh"))}"><button class="btn" onclick="remember()">${T("memAdd")}</button></div>
+  </div>`;
+}
+
+function statsCard() {
+  const S = st.stats;
+  if (!S) return "";
+  const C = T("statsCols");
+  const col = (t) => `<div style="display:grid;gap:4px">${["days", "work", "pats", "fed", "music", "played", "late"].map((k) =>
+    `<div class="row" style="justify-content:space-between;gap:16px"><span class="muted">${C[k]}</span><b>${["work", "music", "late"].includes(k) ? min(Math.round(t[k] || 0)) : Math.round(t[k] || 0)}</b></div>`).join("")}</div>`;
+  return `<div class="card">
+    <h2>${T("statsTitle")}</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px">
+      <div><div style="font-weight:700;margin-bottom:6px">${T("statsMonth")} <span class="muted">${esc(S.ym)}</span></div>${col(S.month)}</div>
+      <div><div style="font-weight:700;margin-bottom:6px">${T("statsPrev")} <span class="muted">${esc(S.prevYm)}</span></div>${col(S.prev)}</div>
+      <div><div style="font-weight:700;margin-bottom:6px">${T("statsYear")(S.year_)}</div>${col(S.year)}</div>
+    </div>
+  </div>`;
+}
+
+function albumCard() {
+  const A = st.album || {};
+  return `<div class="card">
+    <h2>${T("albumTitle")} ${A.list?.length ? `<span class="muted">· ${A.list.length}</span>` : ""}</h2>
+    <div class="muted" style="margin-bottom:8px">${T("albumHint")}</div>
+    <div class="row"><div class="opt"><div class="switch ${A.on ? "on" : ""}" onclick="setSoul({album: ${!A.on}})"></div>${T("albumOn")}</div>
+      <button class="btn" onclick="call('openAlbum')">${T("albumOpen")}</button></div>
   </div>`;
 }
 
@@ -438,6 +518,7 @@ function bondCard() {
   return `<div class="card">
     <h2>${T("bond")} <span class="muted">· ${esc(L.name || "")} · ${bond}/100</span></h2>
     <div class="row" style="gap:4px;margin-bottom:6px">${(L.levels || []).map((n, k) => `<span class="chip ${k === L.index ? "on" : ""}" style="cursor:default">${esc(n)}</span>`).join("")}</div>
+    <div class="muted" style="margin-bottom:4px">${T("bondToday")(st.bondToday || 0)}</div>
     <div class="muted">${L.next != null ? T("bondNext")(L.next - bond) : T("bondTop")}
       · ${tot.pats}: ${TT.pats ?? 0} · ${tot.found}: ${TT.found ?? 0} · ${tot.workMin}: ${min(Math.round(TT.workMin || 0))}</div>
     <h2 style="margin-top:14px">${T("ach")} <span class="muted">· ${got.length}</span></h2>
@@ -445,7 +526,7 @@ function bondCard() {
       ${got.length ? "" : `<span class="muted">${T("achNone")}</span>`}
       ${A.length > got.length ? `<span class="muted">🔒 ${T("achHidden")(A.length - got.length)}</span>` : ""}</div>
     <h2 style="margin-top:14px">${T("gifts")}</h2>
-    ${G.length ? G.slice(0, 10).map((g) => `<div style="padding:6px 0;border-top:1px solid var(--line)"><span class="muted">${esc(g.day)}</span> — ${esc(g.text)}</div>`).join("")
+    ${G.length ? G.slice(0, 10).map((g) => `<div style="padding:6px 0;border-top:1px solid var(--line);white-space:pre-wrap">${g.kind === "letter" ? "💌 " : "🎁 "}<span class="muted">${esc(g.day)}</span>${g.kind === "letter" ? "<br>" : " — "}${esc(g.text)}</div>`).join("")
       : `<div class="muted">${T("giftsEmpty")}</div>`}
   </div>`;
 }
@@ -592,8 +673,11 @@ function render() {
   ${S.apps ? appRulesCard() : ""}
   ${customCard()}
   ${S.play ? playCard() : ""}
+  ${memoryCard()}
   ${chartCard()}
+  ${statsCard()}
   ${diaryCard()}
+  ${albumCard()}
   ${pastimesCard()}
   ${starterCard()}
   ${backupCard()}
@@ -602,9 +686,25 @@ function render() {
 
 async function feedHer(food) {
   const r = await call("feed", { food });
-  if (r?.text) toast(r.text);
-  st.hunger = r?.hunger ?? st.hunger;
-  render();
+  if (r?.why) toast(r.why === "locked" ? T("needLevel") : T("needCoins"));
+  else if (r?.text) toast(r.text);
+  await refresh();
+}
+async function giveHer(id) {
+  const r = await call("present", { id });
+  if (r?.why) toast(r.why === "locked" ? T("needLevel") : T("needCoins"));
+  else if (r?.text) toast(r.text);
+  await refresh();
+}
+async function remember() {
+  const el = document.getElementById("memText");
+  if (!el.value.trim()) return;
+  await call("remember", { text: el.value });
+  await refresh();
+}
+async function forget(text) {
+  await call("forget", { text });
+  await refresh();
 }
 async function setStarter(on) {
   starterBusy = true;

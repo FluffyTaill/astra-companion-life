@@ -1,7 +1,7 @@
 [plugin]
 id = "companion-life"
 name = "Companion Life"
-version = "1.4.0"
+version = "1.5.0"
 description = "Your avatar lives a life of her own: needs and a mood that change through the day, pastimes she picks herself, rare words."
 author = "Taill"
 license = "MIT"
@@ -33,4 +33,5 @@ target = "noarch"
 
 [permissions]
 fire_trigger = { reason = "Plays her pastimes and says her rare words through the Astra commands the plugin page creates." }
+set_variable = { reason = "Publishes her mood, hunger, health, friendship level and coins as Astra variables (companion_*) for your commands and other plugins.", scopes = ["session"] }
 send_chat_message = { reason = "Optional: asks Astra for a short line in her voice now and then (off unless turned on)." }

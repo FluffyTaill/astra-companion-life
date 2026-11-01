@@ -1,4 +1,5 @@
 // Feeding her, a starter set of animations for a pack that has few, and her phrases for both.
+import { gainBondOn, MORE_FOODS } from "./more";
 
 // ── food ────────────────────────────────────────────────────────────────────
 // fill: how much hunger it takes away; sweet: a sweet thing late at night keeps her up; drink: she
@@ -13,7 +14,9 @@ export const FOODS = {
   candy: { ru: "конфета", en: "a candy", ja: "あめ", icon: "🍬", fill: 8, sweet: true },
   tea: { ru: "чай", en: "tea", ja: "お茶", icon: "🍵", fill: 8, drink: true },
   milk: { ru: "клубничное молоко", en: "strawberry milk", ja: "いちごミルク", icon: "🥛", fill: 15, sweet: true, drink: true },
-  juice: { ru: "сок", en: "juice", ja: "ジュース", icon: "🧃", fill: 10, sweet: true, drink: true }
+  juice: { ru: "сок", en: "juice", ja: "ジュース", icon: "🧃", fill: 10, sweet: true, drink: true },
+  // treats that open with your friendship (more.ts)
+  ...MORE_FOODS
 };
 // what she thinks of it: her personality's "loves" / "dislikes" words name it (in any language)
 export function foodTaste(id, persona) {
@@ -29,7 +32,7 @@ export function foodTaste(id, persona) {
 
 // What a meal does: refused when she is full; less hungry, happier (more for what she loves, less
 // for what she does not); a sweet thing late at night wakes her up. Returns what to say.
-export function feedSoul(soul, id, persona, hour) {
+export function feedSoul(soul, id, persona, hour, day = "") {
   const f = FOODS[id];
   if (!f) return { ok: false, key: "" };
   if (soul.hunger < 15) {
@@ -39,7 +42,7 @@ export function feedSoul(soul, id, persona, hour) {
   const taste = foodTaste(id, persona);
   soul.hunger = Math.max(0, soul.hunger - f.fill);
   soul.joy = Math.max(0, Math.min(100, soul.joy + (taste > 0 ? 15 : taste < 0 ? -4 : 8)));
-  soul.bond = Math.min(100, soul.bond + (taste > 0 ? 0.6 : 0.3));
+  gainBondOn(soul, taste > 0 ? 0.6 : 0.3, day);
   const late = hour >= 21 || hour < 5;
   if (f.sweet && late) soul.energy = Math.min(100, soul.energy + 15);
   return { ok: true, key: taste > 0 ? "fedLove" : taste < 0 ? "fedDislike" : f.sweet && late ? "fedNight" : "fed", drink: !!f.drink, taste };

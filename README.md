@@ -46,6 +46,30 @@
 - **Мини-игры:** прятки (выглядывает из-под края окна — наведи курсор, пока не спряталась) и «поймай сердечко»
   (наведи курсор, пока не улетело). Сама предлагает, когда скучает, не чаще раза в час; можно начать с её страницы.
 
+### Отношения надо заслужить, магазин, здоровье, игры в чате (1.5.0)
+
+- **Отношения растут медленнее:** всё, что сближает (время вместе, поглаживания, еда, желания, подарки), идёт в один
+  дневной лимит — не больше 3 в день, и чем ближе вы, тем медленнее. От «знакомых» до «родных душ» — около двух месяцев
+  хороших дней. Страница показывает, сколько набрано сегодня.
+- **Монетки и магазин:** 1 монетка за 10 минут вместе, 5 за исполненное желание, ещё за выигранные игры. Простая еда
+  бесплатна, вкусности стоят монетки и открываются с уровнем отношений (тайяки, парфе, домашнее бенто…). **Подарки ей:**
+  цветочек, бантик, брелок-мишка, книжка, ночник-звёздочка, кулончик — радуют, сближают и остаются у неё.
+- **Здоровье:** долгий голод и усталость её изматывают; меньше 40 — приболела (вялая, сонная, говорит об этом). Еда, чай
+  и сон лечат.
+- **Ночью она спит:** разбудишь посреди её ночи (по её режиму — сова, жаворонок) — проворчит и будет сонной.
+- **В чате Astra** (инструменты для ИИ): покормить («покорми её тортиком»), поиграть в прятки / «поймай сердечко»,
+  «камень-ножницы-бумага», «угадай число».
+- **Она помнит о тебе:** ИИ Astra запоминает важное, что ты рассказываешь (любимое, имена, даты, планы), и она иногда
+  вспоминает это; список на странице, можно добавить и удалить.
+- **Письмо раз в неделю** — о неделе вместе, в шкатулку.
+- **Фотоальбом** (по желанию, выключен): снимок её окна в особые моменты — новый уровень, достижение, подарок, письмо —
+  в `Документы\Companion Life\album`.
+- **У каждого персонажа своя память и своя личность:** сменил модель — у другой свои отношения, дневник и достижения.
+  Копии сохраняют всех.
+- **Переменные Astra** `companion_mood`, `companion_hunger`, `companion_health`, `companion_level`, `companion_bond`,
+  `companion_coins` — для твоих команд и других плагинов.
+- **Итоги** этого и прошлого месяца и года.
+
 ### Кормить её, стартовый набор, копии (1.4.0)
 
 - **Покормить:** на странице — печенька, онигири, клубника, тортик, рамен, яблоко, конфета, чай, клубничное молоко, сок.
@@ -153,7 +177,11 @@ joy) drift with time and with what happens, give her a mood, and for the mood, t
 picks herself something to do every few minutes from the states of her own animation pack — and now and then says a
 word in Astra's voice. The needs persist across restarts. Since 1.3.0 her personality is detailed rather than a preset —
 seven trait sliders, her day, likes, her speech, her story, how strongly she reacts — seeded from Astra's own AI personality and
-carried back to Astra's chat as a character card you import there. Since 1.4.0 you feed her (ten foods; what she loves pleases her
+carried back to Astra's chat as a character card you import there. Since 1.5.0 attachment is earned (one daily budget,
+slower the closer you are — about two months to the top), coins buy treats and presents that open with your friendship, she has
+health, sleeps at her night, plays rock-paper-scissors and guess-the-number and is fed through Astra's chat, remembers what you
+tell her, writes a weekly letter, keeps an optional photo album and per-character memories, publishes her state as Astra
+variables, and shows month and year totals. Since 1.4.0 you feed her (ten foods; what she loves pleases her
 more, she refuses when full), achievements stay hidden until unlocked, a starter set of free CC0 animations fills the pastimes
 her pack lacks, and a daily backup in Documents brings everything back after a reinstall. Since 1.2.0 also: hunger and restlessness, your habits and
 dates, the weather (Open-Meteo, with the location from Astra's weather settings), words about your programs and your own
