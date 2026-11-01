@@ -16,12 +16,8 @@ import * as import_node_child_process from "node:child_process";
 import { plugin, s as schema, tool } from "astra-plugin-sdk";
 import { PHRASES, CHARACTERS, LANGS, phraseFor } from "./phrases";
 import { GIFTS, HOBBIES, LEVELS, ACHIEVEMENTS } from "./phrases2";
-// things she holds and things around her (tools/gen_life_assets.py)
-import BOOK_GLB from "../assets/book.glb";
-import CUP_GLB from "../assets/cup.glb";
-import PLUSH_GLB from "../assets/plush.glb";
-import HOLD_VRMA from "../assets/hold.vrma";
-import HUG_VRMA from "../assets/hug.vrma";
+// the sky around her (tools/gen_life_assets.py); the things she holds (book.glb, cup.glb, plush.glb, hold.vrma,
+// hug.vrma in assets/) are left out of the build until PROPS_READY
 import STAR_PNG from "../assets/star.png";
 import FIREFLY_PNG from "../assets/firefly.png";
 
@@ -962,7 +958,7 @@ function morningFollowUps(day, now) {
 var LIFE_BEGIN = "# ── Companion Life: things she holds and things around her (written by the plugin) ──";
 var LIFE_END = "# ── end of Companion Life ──";
 var LIFE_DIR = "clips/companion-life";
-var LIFE_FILES = { "book.glb": BOOK_GLB, "cup.glb": CUP_GLB, "plush.glb": PLUSH_GLB, "hold.vrma": HOLD_VRMA, "hug.vrma": HUG_VRMA, "star.png": STAR_PNG, "firefly.png": FIREFLY_PNG };
+var LIFE_FILES = { "star.png": STAR_PNG, "firefly.png": FIREFLY_PNG };
 // her own holding poses (tools/gen_hold.cjs): forearms forward, palms toward the thing; the thing is
 // placed between her hands with no fingertip grip (that one turns the palms down, for typing)
 var HOLD = { cl_read: { prop: "book.glb", pose: "hold", place: [0.42, 0.3, 45, 0.85] },
