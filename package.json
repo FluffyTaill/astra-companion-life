@@ -1,13 +1,13 @@
 {
   "name": "companion-life",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Astra plugin: the avatar lives a life of her own — needs, a mood, pastimes and a day",
   "license": "MIT",
   "author": "Taill",
   "main": "dist/index.js",
   "scripts": {
     "build": "bun install --frozen-lockfile && esbuild src/index.ts --bundle --platform=node --format=cjs --loader:.glb=binary --loader:.png=binary --loader:.vrma=binary --outfile=dist/index.js",
-    "pretest": "esbuild src/index.ts --bundle --platform=node --format=cjs --external:astra-plugin-sdk --loader:.glb=binary --loader:.png=binary --loader:.vrma=binary --outfile=test/.build/plugin.cjs && esbuild src/care.ts --bundle --platform=node --format=cjs --outfile=test/.build/care.cjs --log-level=warning && esbuild src/more.ts --bundle --platform=node --format=cjs --outfile=test/.build/more.cjs --log-level=warning",
+    "pretest": "esbuild src/index.ts --bundle --platform=node --format=cjs --external:astra-plugin-sdk --loader:.glb=binary --loader:.png=binary --loader:.vrma=binary --outfile=test/.build/plugin.cjs && esbuild src/care.ts --bundle --platform=node --format=cjs --outfile=test/.build/care.cjs --log-level=warning && esbuild src/more.ts --bundle --platform=node --format=cjs --outfile=test/.build/more.cjs --log-level=warning && esbuild src/seal.ts --bundle --platform=node --format=cjs --outfile=test/.build/seal.cjs --log-level=warning",
     "test": "node --test test/*.test.mjs"
   },
   "engines": {

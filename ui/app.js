@@ -190,6 +190,11 @@ Object.assign(I18N.en, {
   backupConfirm: "Bring everything back as it was in this backup? The current state is saved as a separate backup first.", backupDone: "Restored",
   restoreOffer: (d) => `Found a backup from ${d} — looks like the plugin was reinstalled. Bring back her settings and memory?`, restoreYes: "Restore", restoreNo: "Start fresh"
 });
+// her data changed by hand: a mark that stays
+Object.assign(I18N.ru, { tampered: (d, why) => `🔧 Данные Companion Life меняли вручную (${d}, ${why}). Эта пометка остаётся навсегда: прогресс зарабатывается, а не выставляется.`,
+  tamperWhy: { edited: "правка файла", "edited-running": "правка во время работы", "seal-removed": "снята подпись", "backup-edited": "правленая копия", "restored-unverified": "копия без проверки" } });
+Object.assign(I18N.en, { tampered: (d, why) => `🔧 Companion Life's data was changed by hand (${d}, ${why}). This mark stays for good: progress is earned, not set.`,
+  tamperWhy: { edited: "the file edited", "edited-running": "edited while running", "seal-removed": "the seal removed", "backup-edited": "an edited backup", "restored-unverified": "an unverified backup" } });
 // the slower life: coins, the shop, presents, health, her memory of you, the album, the month and year
 Object.assign(I18N.ru, {
   coins: (n) => `🪙 ${n}`, coinsHint: "Монетки копятся сами: 1 за 10 минут вместе, 5 за исполненное желание, ещё за выигранные игры.",
@@ -516,7 +521,7 @@ function bondCard() {
   const bond = N.bond ?? 0, got = A.filter((a) => a.at);
   const tot = T("totals");
   return `<div class="card">
-    <h2>${T("bond")} <span class="muted">· ${esc(L.name || "")} · ${bond}/100</span></h2>
+    <h2>${T("bond")} <span class="muted">· ${esc(L.name || "")} · ${bond}/100${st.tampered ? " · 🔧" : ""}</span></h2>
     <div class="row" style="gap:4px;margin-bottom:6px">${(L.levels || []).map((n, k) => `<span class="chip ${k === L.index ? "on" : ""}" style="cursor:default">${esc(n)}</span>`).join("")}</div>
     <div class="muted" style="margin-bottom:4px">${T("bondToday")(st.bondToday || 0)}</div>
     <div class="muted">${L.next != null ? T("bondNext")(L.next - bond) : T("bondTop")}
@@ -660,6 +665,7 @@ function render() {
     <div class="row"><button class="btn" onclick="toggleLang()">${lang === "ru" ? "EN" : "RU"}</button></div>
   </div>
   ${banner ? `<div class="${banner.cls}">${esc(banner.text)}</div>` : ""}
+  ${st.tampered ? `<div class="err">${esc(T("tampered")(String(st.tampered.at).slice(0, 10), T("tamperWhy")[st.tampered.why] || st.tampered.why))}</div>` : ""}
   ${restoreBanner()}
   ${!S.setup || cmdState() !== "ok" ? setupCard() : ""}
   ${soulCard()}

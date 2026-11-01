@@ -13,6 +13,8 @@ fs.mkdirSync(path.join(appdata, "astra", "astra", "config", "logs"), { recursive
 fs.writeFileSync(path.join(appdata, "astra", "astra", "config", "logs", "daemon.log.test"), "");
 const require = createRequire(import.meta.url);
 const { internals } = require("./.build/plugin.cjs");
+// no seal process in tests: her memory is unsealed, and nothing goes to the registry or Documents
+Object.assign(internals.guard, { ready: true, test: true });
 
 test("needs drift into a mood, and a pastime suits the mood, the hour and what she has", () => {
   const { moodOf, driftSoul, pickPastime } = internals;
@@ -325,4 +327,57 @@ test("the slower life: attachment on a daily budget, a shop, health, chat games,
   const t = M.statsFor("2026-10", months, { "2026-10-30": { work: 60, pats: 2 }, "2026-11-01": { work: 500 } });
   assert.deepEqual([t.work, t.pats, t.fed, t.days], [180, 5, 1, 2]);
   assert.equal(M.statsFor("2026", months, {}).pats, 3);
+});
+
+test("her memory is sealed: a change by hand — in the file, while running, a seal removed, an edited backup — leaves a mark that stays", async () => {
+  const S = await import("./.build/seal.cjs");
+  const secret = "ab".repeat(32);
+  // the seal covers everything but itself, in any key order
+  const mem = { bond: 40, coins: 3, totals: { pats: 5 } };
+  const sealed = { ...mem, seal: S.sealOf(secret, mem) };
+  assert.equal(S.verify(secret, { coins: 3, totals: { pats: 5 }, bond: 40, seal: sealed.seal }, true), "ok");
+  assert.equal(S.verify(secret, { ...sealed, bond: 100 }, true), "edited");
+  assert.equal(S.verify(secret, mem, true), "seal-removed");
+  assert.equal(S.verify(secret, mem, false), "new");
+  // removing the mark from a sealed memory breaks its seal too
+  const marked = { ...mem, tampered: { at: "2026-11-01", why: "edited" } };
+  const ms = { ...marked, seal: S.sealOf(secret, marked) };
+  const { tampered, ...unmarked } = ms;
+  assert.equal(S.verify(secret, unmarked, true), "edited");
+  // the earliest mark stands
+  assert.deepEqual(S.markOf(null, { at: "2026-12-01", why: "b" }, { at: "2026-11-05", why: "a" }), { at: "2026-11-05", why: "a" });
+  assert.equal(S.markOf(null, undefined, ""), null);
+
+  // the plugin: its own saves are sealed; an edit of the file is caught on load and while running
+  const { guard, soul, backupNow, restoreBackup } = internals;
+  const soulPath = internals.soulFile(soul.char);
+  Object.assign(guard, { secret, sealed: true, mark: null, written: {} });
+  soul.bond = 50;
+  const saveSoul = () => backupNow(); // a backup saves her memory first
+  saveSoul();
+  const onDisk = JSON.parse(fs.readFileSync(soulPath, "utf8"));
+  assert.ok(onDisk.seal && S.verify(secret, onDisk, true) === "ok");
+  // edited while the plugin runs: the next save notices
+  fs.writeFileSync(soulPath, JSON.stringify({ ...onDisk, bond: 100 }));
+  saveSoul();
+  assert.equal(guard.mark?.why, "edited-running");
+  const after = JSON.parse(fs.readFileSync(soulPath, "utf8"));
+  assert.deepEqual(after.tampered, guard.mark);
+  assert.equal(S.verify(secret, after, true), "ok");
+  // edited while it was off: caught on load
+  guard.mark = null;
+  guard.written = {};
+  fs.writeFileSync(soulPath, JSON.stringify({ ...onDisk, bond: 99 }));
+  internals.checkSoul(soulPath, JSON.parse(fs.readFileSync(soulPath, "utf8")));
+  assert.equal(guard.mark?.why, "edited");
+  // an edited backup brings the mark with it
+  guard.mark = null;
+  guard.written = {};
+  const file = backupNow();
+  const b = JSON.parse(fs.readFileSync(file, "utf8"));
+  b.soul.bond = 100;
+  fs.writeFileSync(file, JSON.stringify(b));
+  restoreBackup(file);
+  assert.equal(guard.mark?.why, "backup-edited");
+  Object.assign(guard, { secret: "", sealed: false, mark: null, written: {} });
 });

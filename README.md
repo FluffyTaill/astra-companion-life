@@ -46,6 +46,20 @@
 - **Мини-игры:** прятки (выглядывает из-под края окна — наведи курсор, пока не спряталась) и «поймай сердечко»
   (наведи курсор, пока не улетело). Сама предлагает, когда скучает, не чаще раза в час; можно начать с её страницы.
 
+### Прогресс зарабатывается, а не выставляется (1.6.0)
+
+- **Её память подписана.** Каждое сохранение несёт подпись (HMAC) ключом, который Windows хранит зашифрованным только
+  для твоей учётной записи (DPAPI). Правка в обход плагина — в файле, во время работы, снятая подпись, правленая
+  резервная копия — ставит пометку **«🔧 данные меняли вручную»** с датой и причиной.
+- **Пометка остаётся.** Она хранится сразу в нескольких местах (её память, настройки, реестр, зашифрованный файл в
+  Документах), и любое место, где она ещё есть, возвращает её в остальные. Пометку видно на странице и в переменной
+  `companion_changed`; ИИ Astra тоже о ней знает.
+- **Её инструменты ничего не выставляют:** у ИИ Astra нет способа «поставить отношения 100», а в описаниях инструментов
+  и в карточке персонажа прямо сказано, что прогресс зарабатывается и файлы плагина не трогают.
+- Перенос копии с другого ПК (другой ключ) или старой копии без подписи отмечается как «копия без проверки».
+- Честно: на своём компьютере человек с исходниками может обойти что угодно — подпись и пометка делают это
+  расследованием, а не правкой одной строки, и честно показывают, что прогресс правили.
+
 ### Отношения надо заслужить, магазин, здоровье, игры в чате (1.5.0)
 
 - **Отношения растут медленнее:** всё, что сближает (время вместе, поглаживания, еда, желания, подарки), идёт в один
@@ -177,7 +191,9 @@ joy) drift with time and with what happens, give her a mood, and for the mood, t
 picks herself something to do every few minutes from the states of her own animation pack — and now and then says a
 word in Astra's voice. The needs persist across restarts. Since 1.3.0 her personality is detailed rather than a preset —
 seven trait sliders, her day, likes, her speech, her story, how strongly she reacts — seeded from Astra's own AI personality and
-carried back to Astra's chat as a character card you import there. Since 1.5.0 attachment is earned (one daily budget,
+carried back to Astra's chat as a character card you import there. Since 1.6.0 her memory is sealed with a key Windows keeps
+for your account only (DPAPI): a change made behind the plugin's back leaves a lasting "changed by hand" mark, kept in several
+places that restore each other. Since 1.5.0 attachment is earned (one daily budget,
 slower the closer you are — about two months to the top), coins buy treats and presents that open with your friendship, she has
 health, sleeps at her night, plays rock-paper-scissors and guess-the-number and is fed through Astra's chat, remembers what you
 tell her, writes a weekly letter, keeps an optional photo album and per-character memories, publishes her state as Astra

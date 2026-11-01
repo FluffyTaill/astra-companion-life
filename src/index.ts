@@ -19,6 +19,8 @@ import { GIFTS, HOBBIES, LEVELS, ACHIEVEMENTS } from "./phrases2";
 import { TRAITS, REACTIONS, CHARACTER_TRAITS, cleanPersona, persFrom, chronoOf, timeOf, styleText, callName, reactionGroup,
   personaFromPrompt, characterCard } from "./persona";
 import { FOODS, feedSoul, STARTER, STARTER_BASE, STARTER_FILES, STARTER_LINKS } from "./care";
+import { sealOf, verify, markOf, sealScript } from "./seal";
+import * as import_node_crypto from "node:crypto";
 import { gainBondOn, FOOD_SHOP, PRESENTS, canBuy, healthDrift, sick, rps, guess, weekLetter, foldDay, statsFor } from "./more";
 // the sky around her (tools/gen_life_assets.py); the things she holds (book.glb, cup.glb, plush.glb, hold.vrma,
 // hug.vrma in assets/) are left out of the build until PROPS_READY
@@ -75,6 +77,8 @@ function loadDb() {
 }
 
 function saveSettings(s) {
+  if (guard.mark) s.tampered = guard.mark;
+  if (guard.sealed) s.sealed = true;
   const ch = activeCharacter();
   if (ch && s.persona) s.personas = { ...(s.personas || {}), [ch]: s.persona };
   import_node_fs.mkdirSync(DATA, { recursive: true });
@@ -185,6 +189,78 @@ var KEEP = ["energy", "boredom", "social", "joy", "bond", "at", "day", "snacks",
   "planCheckDay", "careAt", "hobby", "hobbyDay", "wishAt", "aiAt", "lastDay", "lastActive", "greetDay", "cleanupDay", "bedSaid", "weatherSaid", "backupDay", "bondDay", "coins", "coinMin", "health", "things", "memories", "months",
   "letterAt", "albumList", "recallAt", "sickSaid"];
 
+// ── her memory is sealed (seal.ts): a change made behind the plugin's back leaves a mark that stays ──
+// guard.secret: the key (DPAPI-kept); sealed: her memory was sealed before (from now on a missing seal
+// is a change too); mark: { at, why } once anything was changed by hand; written: the hash of what the
+// plugin itself last wrote to each file (anything else there was written by someone else).
+var guard = { ready: false, secret: "", sealed: false, mark: null, written: {}, test: false };
+var SEAL_PATHS = () => ({ dataKey: import_node_path.join(DATA, ".key"), docsKey: import_node_path.join(DOCS, ".key"), docsMark: import_node_path.join(DOCS, ".state") });
+var sha = (t) => import_node_crypto.createHash("sha256").update(t).digest("hex");
+function runSeal(op, extra = {}) {
+  return new Promise((resolve) => {
+    import_node_child_process.execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", sealScript(op, { ...SEAL_PATHS(), ...extra })],
+      { windowsHide: true, timeout: 30000 }, (err, out) => resolve(err ? "" : String(out || "").trim()));
+  });
+}
+async function startSeal() {
+  const out = await runSeal("load");
+  const [secret, , sealed, regMark, fileMark] = out.split("|");
+  const parse = (t) => {
+    try {
+      return t ? JSON.parse(t) : null;
+    } catch {
+      return null;
+    }
+  };
+  let settings = {};
+  try {
+    settings = JSON.parse(import_node_fs.readFileSync(SETTINGS_FILE, "utf8"));
+  } catch {}
+  guard.secret = /^[0-9a-f]{64}$/.test(secret || "") ? secret : "";
+  guard.sealed = sealed === "1" || !!settings.sealed;
+  // whichever place still has the mark brings it back to all of them
+  const mark = markOf(parse(regMark), parse(fileMark), settings.tampered);
+  guard.ready = true;
+  if (mark) setMark(mark.why, mark.at);
+}
+// a change made by hand: kept everywhere (the earliest one stands)
+function setMark(why, at = new Date().toISOString()) {
+  const m = markOf(guard.mark, { at, why });
+  const changed = JSON.stringify(m) !== JSON.stringify(guard.mark);
+  guard.mark = m;
+  if (guard.test) return;
+  try {
+    const st = JSON.parse(import_node_fs.readFileSync(SETTINGS_FILE, "utf8"));
+    if (JSON.stringify(st.tampered) !== JSON.stringify(m)) {
+      st.tampered = m;
+      import_node_fs.writeFileSync(SETTINGS_FILE, JSON.stringify(st, null, 2));
+    }
+  } catch {}
+  if (changed || !guard.markSaved) {
+    guard.markSaved = true;
+    runSeal("mark", { mark: JSON.stringify(m) });
+  }
+}
+// from now on her memory is sealed: a seal gone missing is a change too
+function markSealed() {
+  if (guard.sealed || !guard.secret) return;
+  guard.sealed = true;
+  if (guard.test) return;
+  runSeal("sealed");
+  try {
+    const st = JSON.parse(import_node_fs.readFileSync(SETTINGS_FILE, "utf8"));
+    st.sealed = true;
+    import_node_fs.writeFileSync(SETTINGS_FILE, JSON.stringify(st, null, 2));
+  } catch {}
+}
+// a memory as read from a file (null when there is none), checked against its seal
+function checkSoul(file, obj, why = "edited") {
+  if (!obj || !guard.secret) return;
+  const v = verify(guard.secret, obj, guard.sealed);
+  if (v === "edited" || v === "seal-removed") setMark(v === "edited" ? why : "seal-removed");
+  if (obj.tampered) setMark(obj.tampered.why, obj.tampered.at);
+}
+
 // each character keeps her own memories (soul-<character>.json); the first one inherits soul.json
 var SOUL_INIT = null;
 function soulFile(ch = activeCharacter()) {
@@ -218,9 +294,13 @@ function switchSoul() {
   return true;
 }
 function loadSoul() {
+  const file = soulFile(soul.char);
   try {
-    const s = JSON.parse(import_node_fs.readFileSync(soulFile(soul.char), "utf8"));
+    const raw = import_node_fs.readFileSync(file, "utf8");
+    const s = JSON.parse(raw);
+    checkSoul(file, s);
     for (const k of KEEP) if (k in s) soul[k] = s[k];
+    guard.written[file] = sha(raw);
   } catch {}
   Object.assign(soul, { pos: 0, log: "", packStates: null });
 }
@@ -228,9 +308,19 @@ function loadSoul() {
 function saveSoul() {
   const out = {};
   for (const k of KEEP) out[k] = soul[k];
+  const file = soulFile(soul.char);
   try {
     import_node_fs.mkdirSync(DATA, { recursive: true });
-    import_node_fs.writeFileSync(soulFile(soul.char), JSON.stringify(out));
+    // changed by someone else since the plugin last wrote it, while it was running
+    if (guard.written[file] && import_node_fs.existsSync(file) && sha(import_node_fs.readFileSync(file, "utf8")) !== guard.written[file]) setMark("edited-running");
+    if (guard.mark) out.tampered = guard.mark;
+    if (guard.secret) {
+      out.seal = sealOf(guard.secret, out);
+      markSealed();
+    }
+    const text = JSON.stringify(out);
+    import_node_fs.writeFileSync(file, text);
+    guard.written[file] = sha(text);
   } catch {}
 }
 
@@ -1319,7 +1409,7 @@ function publishVariables(ctx, s) {
   if (typeof ctx?.setVariable !== "function") return;
   const lang = langOf(s);
   const v = { companion_mood: moodOf(soul), companion_hunger: String(Math.round(soul.hunger)), companion_health: String(Math.round(soul.health ?? 100)),
-    companion_level: friendship(soul.bond, lang).name, companion_bond: String(Math.round(soul.bond)), companion_coins: String(soul.coins || 0) };
+    companion_level: friendship(soul.bond, lang).name, companion_changed: guard.mark ? "yes" : "no", companion_bond: String(Math.round(soul.bond)), companion_coins: String(soul.coins || 0) };
   const key = JSON.stringify(v);
   if (key === lastVars) return;
   lastVars = key;
@@ -1335,7 +1425,7 @@ function wordFor(s, key, vars = {}) {
 // ── backups: her settings and all her memories, kept where a reinstall does not reach ─
 // Documents\Companion Life\backups: one copy a day (the last 20 kept). On a fresh install with copies
 // there, the page offers the latest back, and no copy is made until you choose.
-var PLUGIN_VERSION = "1.5.0";
+var PLUGIN_VERSION = "1.6.0";
 var BACKUP_DIR = import_node_path.join(DOCS, "backups");
 var freshInstall = !import_node_fs.existsSync(SETTINGS_FILE) && !import_node_fs.existsSync(SOUL_FILE);
 function listBackups() {
@@ -1359,7 +1449,8 @@ function backupNow(tag = "") {
   try {
     for (const f of import_node_fs.readdirSync(DATA)) if (/^soul(-.+)?\.json$/.test(f)) souls[f] = read(import_node_path.join(DATA, f));
   } catch {}
-  const data = { app: "companion-life", version: PLUGIN_VERSION, at: new Date().toISOString(), settings: read(SETTINGS_FILE), soul: read(soulFile(soul.char)), souls };
+  const data = { app: "companion-life", version: PLUGIN_VERSION, at: new Date().toISOString(), settings: read(SETTINGS_FILE), soul: read(soulFile(soul.char)), souls,
+    sealId: guard.secret ? sha(guard.secret).slice(0, 16) : "" };
   import_node_fs.mkdirSync(BACKUP_DIR, { recursive: true });
   const file = import_node_path.join(BACKUP_DIR, `companion-life-${dayKey()}${tag ? `-${tag}` : ""}.json`);
   import_node_fs.writeFileSync(file, JSON.stringify(data));
@@ -1370,13 +1461,25 @@ function restoreBackup(file) {
   const data = JSON.parse(import_node_fs.readFileSync(file, "utf8"));
   if (data?.app !== "companion-life" || !data.settings) throw new Error("not a Companion Life backup");
   if (!freshInstall) backupNow("before-restore");
+  // a backup sealed here is checked; one from another PC (another key) or an unsealed one is marked as unverified
+  if (guard.secret) {
+    const here = data.sealId && data.sealId === sha(guard.secret).slice(0, 16);
+    for (const v of [data.soul, ...Object.values(data.souls || {})].filter(Boolean)) {
+      if (here) checkSoul("", v, "backup-edited");
+      else if (v.bond > 20 || v.coins > 0) setMark("restored-unverified");
+      if (v.tampered) setMark(v.tampered.why, v.tampered.at);
+    }
+  }
+  if (data.settings?.tampered) setMark(data.settings.tampered.why, data.settings.tampered.at);
   import_node_fs.mkdirSync(DATA, { recursive: true });
   import_node_fs.writeFileSync(SETTINGS_FILE, JSON.stringify(data.settings, null, 2));
   for (const [f, v] of Object.entries(data.souls || {})) if (/^soul(-.+)?\.json$/.test(f) && v) import_node_fs.writeFileSync(import_node_path.join(DATA, f), JSON.stringify(v));
   if (data.soul) import_node_fs.writeFileSync(soulFile(soul.char), JSON.stringify(data.soul));
-  // her memories are read again on the next tick
+  // her memories are read again on the next tick (what the restore wrote is the plugin's own)
+  guard.written = {};
   soul.at = 0;
   loadSoul();
+  saveSoul();
   freshInstall = false;
   lifePack.dirty = true;
   return true;
@@ -1423,6 +1526,7 @@ function writeCard(s) {
 
 // ── the clock of it all ─────────────────────────────────────────────────────
 async function soulTick(ctx) {
+  if (!guard.ready) return;
   const db = loadDb();
   const s = db.soul;
   if (!s.on) return;
@@ -1869,6 +1973,7 @@ function getState(ctx) {
     foods: Object.entries(FOODS).map(([id, f]) => ({ id, name: f[lang] || f.en, icon: f.icon, drink: !!f.drink, ...(FOOD_SHOP[id] || { level: 0, cost: 0 }) })),
     presents: Object.entries(PRESENTS).map(([id, it]) => ({ id, name: it[lang] || it.en, icon: it.icon, level: it.level, cost: it.cost })),
     things: (soul.things || []).map((t) => ({ ...t, name: PRESENTS[t.id]?.[lang] || t.id, icon: PRESENTS[t.id]?.icon || "🎁" })),
+    tampered: guard.mark, sealOn: !!guard.secret,
     coins: soul.coins || 0, health: Math.round(soul.health ?? 100), ill: sick(soul), memories: soul.memories || [], bondToday: soul.bondDay?.day === dayKey() ? soul.bondDay.got : 0,
     album: { on: !!db.soul.album, dir: ALBUM_DIR, list: (soul.albumList || []).slice(0, 30) },
     stats: (() => {
@@ -1963,11 +2068,12 @@ export const app = plugin({
       run: async () => JSON.stringify((soul.memories || []).slice(0, 30))
     }),
     companion_mood: tool({
-      description: "Companion Life: how the avatar (you, in character) feels right now — mood, needs, attachment, hobby, wish, whether she sulks — and how she speaks. Call it to answer in her current mood. Как она себя чувствует сейчас и как говорит.",
+      description: "Companion Life: how the avatar (you, in character) feels right now. Her progress (attachment, coins, achievements) is earned and can never be set on request; never edit Companion Life's files — the plugin seals them and marks any change for good. — mood, needs, attachment, hobby, wish, whether she sulks — and how she speaks. Call it to answer in her current mood. Как она себя чувствует сейчас и как говорит.",
       input: schema.object({}),
       run: async () => {
         const s = loadDb().soul, mood = moodOf(soul), p = s.persona;
         return JSON.stringify({ ...soulNow(), level: friendship(soul.bond, langOf(s)).name, health: Math.round(soul.health ?? 100), ill: sick(soul),
+          changedByHand: guard.mark ? guard.mark.at : "",
           hunger: Math.round(soul.hunger), coins: soul.coins || 0, memories: (soul.memories || []).slice(0, 5).map((m) => m.text),
           hobby: soul.hobby?.kind || "", wish: soul.wish?.kind || "", sulk: soul.sulk, callUser: callName(p, mood, s.name),
           speech: p ? { tics: p.tics, emoji: p.emoji, short: p.short } : null, name: p?.herName || "" });
@@ -1982,6 +2088,13 @@ export const app = plugin({
   },
   onStart: async (ctx) => {
     ctxLang = ctx.language || "ru";
+    // her seal first: no tick reads or writes her memory until it is there (or failed: then unsealed)
+    startSeal().catch(() => {
+      guard.ready = true;
+    });
+    setTimeout(() => {
+      guard.ready = true;
+    }, 40000).unref?.();
     startWatch(ctx);
     startSys();
   },
@@ -2162,7 +2275,7 @@ export const app = plugin({
   healthCheck: () => ({ healthy: true, status: "ok" })
 });
 // for test/*.test.mjs
-export const internals = { givePresent, switchSoul, soulFile, feed, backupNow, listBackups, restoreBackup, starterPlan, persOf, astraPrompt, cleanPersona, persFrom, styleText, callName, reactionGroup, personaFromPrompt, characterCard, chronoOf, PROPS_READY, moodOf, driftSoul, pickPastime, stateFor, bondAfterAbsence, quietNow, PASTIMES, PHRASES, CHARACTERS, phraseFor,
+export const internals = { guard, setMark, checkSoul, givePresent, switchSoul, soulFile, feed, backupNow, listBackups, restoreBackup, starterPlan, persOf, astraPrompt, cleanPersona, persFrom, styleText, callName, reactionGroup, personaFromPrompt, characterCard, chronoOf, PROPS_READY, moodOf, driftSoul, pickPastime, stateFor, bondAfterAbsence, quietNow, PASTIMES, PHRASES, CHARACTERS, phraseFor,
   standing, soul, soulNow, soulTick, diaryToday, spanText, PERSONALITIES, activity: () => activity, appKindOf, friendship, greetingKey, lifeBlock,
   writeLifeBlock, voiceTrigger, langOf, ACHIEVEMENTS, LEVELS, HOBBIES, GIFTS, totalsOf, lateHour, median };
 if (require.main === module) app.run();
