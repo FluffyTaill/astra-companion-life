@@ -3,3 +3,6 @@ node_modules/
 dist/
 MANIFEST.json
 test/.build/
+
+# her holding poses come from a standing clip that is not ours to share (tools/gen_hold.cjs makes them)
+assets/*.vrma
