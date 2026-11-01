@@ -13,8 +13,17 @@
 import * as import_node_fs from "node:fs";
 import * as import_node_path from "node:path";
 import * as import_node_child_process from "node:child_process";
-import { plugin } from "astra-plugin-sdk";
-import { PHRASES, CHARACTERS, phraseFor } from "./phrases";
+import { plugin, s as schema, tool } from "astra-plugin-sdk";
+import { PHRASES, CHARACTERS, LANGS, phraseFor } from "./phrases";
+import { GIFTS, HOBBIES, LEVELS, ACHIEVEMENTS } from "./phrases2";
+// things she holds and things around her (tools/gen_life_assets.py)
+import BOOK_GLB from "../assets/book.glb";
+import CUP_GLB from "../assets/cup.glb";
+import PLUSH_GLB from "../assets/plush.glb";
+import HOLD_VRMA from "../assets/hold.vrma";
+import HUG_VRMA from "../assets/hug.vrma";
+import STAR_PNG from "../assets/star.png";
+import FIREFLY_PNG from "../assets/firefly.png";
 
 var CFG = import_node_path.join(process.env.APPDATA || "", "astra", "astra", "config");
 var PACK_ROOT = import_node_path.join(CFG, "companion", "pack");
@@ -35,14 +44,23 @@ var dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).
 // cheer in games and ask after them; questions: ask you things; play: the little games; setup: the
 // first-run steps are done.
 var SOUL_DEFAULTS = { on: true, talk: true, pace: 1, character: "cheerful", name: "", quiet: { on: true, from: 23, to: 8 },
-  calls: true, games: true, questions: true, play: true, setup: false };
+  calls: true, games: true, questions: true, play: true, setup: false,
+  // lang: "auto" (Astra's) / ru / en / ja; weather: her mood follows it; apps: words about your programs, appRules: your own
+  // [{match, text}]; pomodoro: a tomato timer; custom: your own phrases by situation; voiceMood: softer or brighter voice
+  // by mood; care: water and eyes; goalHours: a goal for the day; chatTone: she reads the tone of your messages to Astra
+  // (here only); aiWords: Astra's AI writes her a line now and then (needs the catalog's chat permission); props, sky:
+  // things in her hands, the sky of the hour (in her pack); birthday: "MM-DD"; dndUntil: quiet until; plan: today's
+  // plan typed on the page
+  lang: "auto", weather: true, apps: true, appRules: [], pomodoro: { on: false, work: 25, rest: 5 }, custom: {}, voiceMood: true,
+  care: true, goalHours: 0, chatTone: false, aiWords: false, props: false, sky: true, birthday: "", dndUntil: 0, plan: "", planDay: "" };
 
 function loadDb() {
   let s = {};
   try {
     s = JSON.parse(import_node_fs.readFileSync(SETTINGS_FILE, "utf8"));
   } catch {}
-  const soul = { ...SOUL_DEFAULTS, ...s, quiet: { ...SOUL_DEFAULTS.quiet, ...s.quiet } };
+  const soul = { ...SOUL_DEFAULTS, ...s, quiet: { ...SOUL_DEFAULTS.quiet, ...s.quiet }, pomodoro: { ...SOUL_DEFAULTS.pomodoro, ...s.pomodoro } };
+  if (!["auto", ...LANGS].includes(soul.lang)) soul.lang = "auto";
   if (!CHARACTERS.includes(soul.character)) soul.character = "cheerful";
   return { soul };
 }
@@ -137,9 +155,16 @@ var soul = { energy: 80, boredom: 20, social: 60, joy: 60, bond: 10, at: 0, next
   cool: {}, activeSince: 0, breakAt: 0, day: "", snacks: [], pos: 0, log: "", saved: 0, packStates: null, packAt: 0,
   diary: {}, firstDay: "", lastHere: 0, wasAway: false, awayFrom: 0, morningDay: "", diaryDay: "", lateAt: 0,
   typing: 0, typedAt: 0, stuckAt: 0, typeSaid: 0, gameFrom: 0, gameLast: 0, gameCheer: 0, questionAt: 0, playAt: 0,
-  game: null, affectionAt: 0 };
+  game: null, affectionAt: 0,
+  hunger: 30, restless: 20, totals: { pats: 0, found: 0, lateNights: 0, workMin: 0, musicMin: 0, wishes: 0, goals: 0 }, arrivals: {}, bedtimes: {},
+  weather: { at: 0, kind: "", temp: 10 }, weatherSaid: "", app: { kind: "", since: 0 }, appSeen: {}, pomo: null, sulk: false, sulkAt: 0, noticedAt: 0,
+  wish: null, wishAt: 0, gifts: [], giftAt: 0, ach: {}, level: 0, goalSaid: {}, plan: "", planDay: "", planAsked: 0, planAskedDay: "", planCheckDay: "",
+  chatPos: {}, toneAt: 0, careAt: 0, careKind: "", callFrom: 0, wasMuted: false, loudAt: 0, batAt: 0, batLow: false, cleanupDay: "", bedSaid: "",
+  hobby: null, hobbyDay: "", aiAt: 0, aiBlocked: "", lastDay: "", lastActive: 0, greetDay: "", queue: [], watchAt: 0, holding: null, played: false };
 var KEEP = ["energy", "boredom", "social", "joy", "bond", "at", "day", "snacks", "cool", "said", "activeSince", "breakAt",
-  "diary", "firstDay", "lastHere", "morningDay", "diaryDay", "lateAt", "questionAt", "playAt", "affectionAt"];
+  "diary", "firstDay", "lastHere", "morningDay", "diaryDay", "lateAt", "questionAt", "playAt", "affectionAt",
+  "hunger", "restless", "totals", "arrivals", "bedtimes", "appSeen", "gifts", "giftAt", "ach", "level", "goalSaid", "plan", "planDay", "planAskedDay",
+  "planCheckDay", "careAt", "hobby", "hobbyDay", "wishAt", "aiAt", "lastDay", "lastActive", "greetDay", "cleanupDay", "bedSaid", "weatherSaid"];
 
 function loadSoul() {
   try {
@@ -210,7 +235,11 @@ var PASTIMES = [
   { id: "sigh", names: ["relief", "sigh"], moods: { bored: 1, lonely: 1 }, say: "sigh" },
   { id: "sad", names: ["sad", "cry", "sorrow"], moods: { lonely: 2 }, say: "lonely" },
   { id: "call", names: ["hello", "wave", "greeting", "hi"], moods: { lonely: 3 }, when: (c) => c.here, say: "call" },
-  { id: "snack", names: ["eat", "eating", "snack", "consume"], moods: { happy: 1, calm: 1, bored: 1, lonely: 1, sleepy: 1 }, snack: true, say: "snack" }
+  { id: "snack", names: ["eat", "eating", "snack", "consume"], moods: { happy: 1, calm: 1, bored: 1, lonely: 1, sleepy: 1 }, snack: true, say: "snack" },
+  // things in her hands (the block in her pack, when "props" is on): held for half a minute or so
+  { id: "read", names: ["cl_read"], moods: { calm: 2, bored: 1.5, sleepy: 0.5 }, hold: true, say: "read" },
+  { id: "tea", names: ["cl_tea"], moods: { calm: 1.5, sleepy: 1.5, happy: 0.7 }, hold: true, say: "tea" },
+  { id: "hug", names: ["cl_hug"], moods: { lonely: 2, sleepy: 1, happy: 0.8 }, hold: true, say: "hug" }
 ];
 var SNACK_HOURS = [[12, 14], [16, 17], [20, 21]];
 // states that are hers to be in, not pastimes
@@ -236,9 +265,10 @@ function pickPastime(mood, c, have, cool, now, rnd = Math.random, pers = PERSONA
     const use = stateFor(p, have);
     if (!use) continue;
     if (p.when && !p.when(c)) continue;
-    if (p.snack && (!SNACK_HOURS.some(([a, b]) => hour >= a && hour < b) || c.snacks?.includes(`${c.day}:${hour < 15 ? 1 : hour < 18 ? 2 : 3}`))) continue;
+    if (p.snack && !c.hungry && (!SNACK_HOURS.some(([a, b]) => hour >= a && hour < b) || c.snacks?.includes(`${c.day}:${hour < 15 ? 1 : hour < 18 ? 2 : 3}`))) continue;
     if (cool[p.id] > now) continue;
-    open.push({ ...p, use, w: p.moods[mood] * (pers.weights?.[p.id] ?? 1) });
+    // her character, her hobby and her restlessness weigh it too
+    open.push({ ...p, use, w: p.moods[mood] * (pers.weights?.[p.id] ?? 1) * (c.boost?.[p.id] ?? 1) });
   }
   // snack time comes first when it is open
   const snack = open.find((p) => p.snack);
@@ -296,13 +326,17 @@ function quietNow(s, hour = new Date().getHours()) {
 // interval (for what you asked for: a game, a greeting); `vars` fill the phrase.
 async function say(ctx, db, key, { force = false, vars = {} } = {}) {
   const s = db.soul, now = Date.now();
-  if (!s.talk || quietNow(s) || GAMES.has(activity.proc) || activity.idleSec > 300) return false;
+  if (!s.talk || quietNow(s) || s.dndUntil > now || GAMES.has(activity.proc) || activity.idleSec > 300) return false;
+  if (soul.sulk && key !== "sulk" && key !== "sulkMakeup") return false;
   const pers = personality(s.character);
   if (!force && (now - soul.said < 15 * 60000 / pers.talk || Math.random() > 0.45 * pers.talk)) return false;
-  const text = phraseFor(ctxLang === "ru" ? "ru" : "en", key, s.character, { name: s.name, ...vars });
+  const text = phraseFor(langOf(s), key, s.character, { name: s.name, ...vars }, Math.random, s.custom?.[key]);
   if (!text) return false;
   soul.said = now;
-  await ctx.fireTrigger("anim_say", { text }).catch(() => {});
+  // the voice for the mood, when its command is there
+  let trigger = voiceTrigger(s, moodOf(soul));
+  if (trigger !== "anim_say" && ![...(ctx.activeTriggers || [])].some((a) => a === trigger || a === TRIGGER_PREFIX + trigger)) trigger = "anim_say";
+  await ctx.fireTrigger(trigger, { text }).catch(() => {});
   return true;
 }
 
@@ -383,13 +417,679 @@ async function gameTick(ctx, db, have, now) {
     const t = diaryToday();
     t.played++;
     t.found++;
+    soul.totals.found++;
+    soul.played = true;
     const happy = stateFor({ names: ["as_lively_yay", "laugh", "clap", "excited", "yay"] }, have);
     if (happy) await ctx.fireTrigger("anim_play", { state: happy }).catch(() => {});
     await say(ctx, db, rules.win, { force: true });
   } else if (now > g.until) {
     soul.game = null;
     diaryToday().played++;
+    soul.played = true;
     await say(ctx, db, rules.miss, { force: true });
+  }
+}
+
+// ── the rest of her life ────────────────────────────────────────────────────
+// Habits (when you come and go), hunger and restlessness, the weather, the seasons and dates, your
+// programs, a tomato timer, care for your eyes and water, a goal for the day, calls, the sound and the
+// battery, sulks and jealousy, hobbies, dreams, wishes, gifts, achievements and friendship levels, a
+// morning plan, the tone of your messages to Astra, words written by Astra's AI, and quiet time.
+var langOf = (s) => (s.lang && s.lang !== "auto" ? s.lang : /^ru/.test(ctxLang) ? "ru" : /^ja/.test(ctxLang) ? "ja" : "en");
+var median = (a) => (a.length ? [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)] : null);
+// hours past noon of the day before count as late evening: 1:30 → 25.5
+var lateHour = (d) => d.getHours() + d.getMinutes() / 60 + (d.getHours() < 6 ? 24 : 0);
+
+// your programs, by kind (the foreground process's name)
+var APP_KINDS = [
+  ["code", /^(code|cursor|pycharm64|pycharm|idea64|idea|webstorm64|rider64|devenv|sublime_text|notepad\+\+|clion64|goland64|zed|windsurf)$/],
+  ["video", /^(vlc|mpc-hc64|mpc-hc|potplayermini64|potplayer|mpv|netflix|kinopoisk)$/],
+  ["music", /^(spotify|aimp|foobar2000|yandexmusic|winamp|musicbee|applemusic)$/],
+  ["chat", /^(discord|telegram|whatsapp|slack|teams|ms-teams|zoom|skype|viber|element)$/],
+  ["creative", /^(photoshop|blender|krita|clipstudiopaint|aseprite|illustrator|afterfx|adobe premiere pro|obs64|resolve|vroidstudio|unity|unrealeditor|paintdotnet|gimp-2.10|figma)$/],
+  ["office", /^(winword|excel|powerpnt|onenote|notion|obsidian|onlyoffice|soffice)$/],
+  ["browser", /^(chrome|msedge|firefox|opera|operagx|brave|vivaldi|yandex|browser|arc|librewolf)$/]
+];
+var appKindOf = (proc) => APP_KINDS.find(([, re]) => re.test(proc))?.[0] || "";
+
+// the voice for the mood: softer and slower when sleepy or lonely, brighter when happy or energetic
+function voiceTrigger(s, mood) {
+  if (!s.voiceMood) return "anim_say";
+  if (mood === "sleepy" || mood === "lonely") return "anim_say_soft";
+  if (mood === "happy" || s.character === "energetic") return "anim_say_bright";
+  return "anim_say";
+}
+
+function friendship(bond, lang = "ru") {
+  let i = 0;
+  LEVELS.forEach((l, k) => { if (bond >= l.min) i = k; });
+  return { index: i, name: LEVELS[i][lang] || LEVELS[i].en };
+}
+
+// her totals for achievements
+function totalsOf() {
+  const t = soul.totals;
+  return { days: soul.firstDay ? Math.floor((Date.now() - Date.parse(soul.firstDay)) / 86400000) + 1 : 1, pats: t.pats, found: t.found,
+    lateNights: t.lateNights, workHours: t.workMin / 60, musicHours: t.musicMin / 60, wishes: t.wishes, goals: t.goals, bond: soul.bond };
+}
+
+// a phrase to say a little later (a follow-up after a greeting, an achievement)
+function queueSay(key, vars = {}, delay = 9000) {
+  soul.queue.push({ key, vars, at: Date.now() + delay });
+}
+
+// ── the weather where you are (Astra's own weather place; Open-Meteo, no key; only its coordinates are sent) ──
+async function weatherNow(now) {
+  if (now - soul.weather.at < 30 * 60000) return soul.weather;
+  soul.weather.at = now;
+  try {
+    const g = JSON.parse(import_node_fs.readFileSync(import_node_path.join(CFG, "settings.json"), "utf8")).general || {};
+    if (!g.weather_location_lat && !g.weather_location_lon) return soul.weather;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${Number(g.weather_location_lat).toFixed(3)}&longitude=${Number(g.weather_location_lon).toFixed(3)}&current=weather_code,temperature_2m`;
+    const cur = (await (await fetch(url, { signal: AbortSignal.timeout(10000) })).json())?.current || {};
+    const code = cur.weather_code;
+    const kind = code >= 95 ? "storm" : (code >= 71 && code <= 77) || code === 85 || code === 86 ? "snow"
+      : (code >= 51 && code <= 67) || (code >= 80 && code <= 82) ? "rain" : code <= 1 ? "clear" : "cloud";
+    Object.assign(soul.weather, { kind, temp: Number(cur.temperature_2m) });
+  } catch {}
+  return soul.weather;
+}
+
+// ── the tone of your messages to Astra (only when allowed on the page; read here, sent nowhere) ──
+var PRAISE = /(молодец|умниц|люблю тебя|спасибо|класс|лучшая|милая|красивая|хорошая|обожаю|good girl|love you|thank|great job|cute|best)/i;
+var HURT = /(дура|тупая|глупая|ненавиж|бесишь|отстань|заткнись|бесполезн|stupid|shut up|hate you|useless|dumb)/i;
+
+function chatMessagesSince() {
+  const dir = import_node_path.join(CFG, "chat_history");
+  const out = [];
+  try {
+    for (const f of import_node_fs.readdirSync(dir).filter((n) => n.endsWith(".jsonl"))) {
+      const p = import_node_path.join(dir, f);
+      const size = import_node_fs.statSync(p).size;
+      const from = soul.chatPos[f];
+      soul.chatPos[f] = size;
+      if (from === undefined || size <= from) continue; // the first look only marks where the files end
+      const fd = import_node_fs.openSync(p, "r");
+      const buf = Buffer.alloc(size - from);
+      import_node_fs.readSync(fd, buf, 0, buf.length, from);
+      import_node_fs.closeSync(fd);
+      for (const line of buf.toString("utf8").split(/\r?\n/)) {
+        try {
+          const m = JSON.parse(line);
+          if (m.role === "user" && m.content) out.push(String(m.content));
+        } catch {}
+      }
+    }
+  } catch {}
+  return out;
+}
+
+// ── a word written by Astra's AI (only for a plugin listed in the catalog: it needs Astra's chat) ──
+async function aiWord(ctx, db, mood, hour) {
+  const s = db.soul;
+  if (typeof ctx.sendChatMessage !== "function") return "";
+  const lang = langOf(s);
+  const ask = lang === "ru"
+    ? `Ты — ${s.character === "tsundere" ? "цундэрэ" : s.character} аниме-персонаж-компаньон на рабочем столе. Настроение: ${mood}. Время: ${hour}:00. Пользователь ${activity.proc ? `сейчас в программе ${activity.proc}` : "рядом"}. Скажи ему одну короткую живую фразу от себя (до 12 слов), без кавычек и пояснений.`
+    : `You are a ${s.character} anime desktop companion. Mood: ${mood}. Time: ${hour}:00. The user is ${activity.proc ? `in ${activity.proc}` : "nearby"}. Say one short lively line to them (up to 12 words), no quotes, no explanations.`;
+  let text = "";
+  try {
+    for await (const chunk of ctx.sendChatMessage(ask, { conversationId: "", voiceEnabled: false })) {
+      const t = typeof chunk === "string" ? chunk : chunk?.text || chunk?.delta || chunk?.content || "";
+      if (t) text += t;
+      if (text.length > 300) break;
+    }
+  } catch (e) {
+    soul.aiBlocked = String(e?.message || e).slice(0, 120);
+    return "";
+  }
+  soul.aiBlocked = "";
+  return text.replace(/^["«»\s]+|["«»\s]+$/g, "").split(/\n/)[0].slice(0, 160);
+}
+
+// ── the sound, the battery, the windows: a slow look every 20 s ──
+var SYS_PS = `
+Add-Type @'
+using System; using System.Runtime.InteropServices;
+[Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IAudioEndpointVolume {
+  int f(); int g(); int h(); int i(); int SetMasterVolumeLevel(float l, Guid c); int SetMasterVolumeLevelScalar(float l, Guid c);
+  int GetMasterVolumeLevel(out float l); int GetMasterVolumeLevelScalar(out float l);
+  int a(); int b(); int c(); int d(); int SetMute(bool m, Guid c2); int GetMute(out bool m);
+}
+[Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDevice { int Activate(ref Guid id, int ctx, IntPtr p, [MarshalAs(UnmanagedType.IUnknown)] out object o); }
+[Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDeviceEnumerator { int f(); int GetDefaultAudioEndpoint(int flow, int role, out IMMDevice d); }
+[ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class MMDeviceEnumerator { }
+public class Sys {
+  public delegate bool EnumProc(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc p, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern int GetWindowTextLength(IntPtr h);
+  [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint c);
+  public static int Windows() { int n = 0; EnumWindows((h, l) => { if (IsWindowVisible(h) && GetWindowTextLength(h) > 0 && GetWindow(h, 4) == IntPtr.Zero) n++; return true; }, IntPtr.Zero); return n; }
+  public static string Volume() {
+    try {
+      var e = (IMMDeviceEnumerator)(new MMDeviceEnumerator()); IMMDevice d; e.GetDefaultAudioEndpoint(0, 1, out d);
+      var id = typeof(IAudioEndpointVolume).GUID; object o; d.Activate(ref id, 23, IntPtr.Zero, out o);
+      var v = (IAudioEndpointVolume)o; float l; bool m; v.GetMasterVolumeLevelScalar(out l); v.GetMute(out m);
+      return ((int)Math.Round(l * 100)) + "|" + (m ? 1 : 0);
+    } catch { return "-1|0"; }
+  }
+}
+'@
+while ($true) {
+  $b = Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue | Select-Object -First 1
+  $bat = if ($b) { $b.EstimatedChargeRemaining } else { -1 }
+  $ac = if ($b) { if ($b.BatteryStatus -eq 2 -or $b.BatteryStatus -ge 6) { 1 } else { 0 } } else { 1 }
+  [Console]::Out.WriteLine("$([Sys]::Volume())|$bat|$ac|$([Sys]::Windows())"); [Console]::Out.Flush()
+  Start-Sleep -Seconds 20
+}`;
+var sys = { vol: -1, mute: 0, bat: -1, ac: 1, wins: 0, seen: false };
+
+function startSys() {
+  const child = import_node_child_process.spawn("powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", SYS_PS], { windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
+  child.unref();
+  child.stdout.unref?.();
+  let buf = "";
+  child.stdout.on("data", (chunk) => {
+    buf += chunk.toString();
+    const lines = buf.split(/\r?\n/);
+    buf = lines.pop();
+    for (const line of lines) {
+      const [vol, mute, bat, ac, wins] = line.trim().split("|").map(Number);
+      if (Number.isFinite(vol)) sys = { vol, mute, bat, ac, wins, seen: true };
+    }
+  });
+  child.on("exit", () => setTimeout(startSys, 30000).unref());
+}
+
+// ── her extra life, every tick; true when she did or said something ──
+async function extrasTick(ctx, db, e) {
+  const s = db.soul, { now, hour, day, here, free, have, play, today, min, mood } = e;
+  const lang = langOf(s);
+  const T = soul.totals;
+  // needs and totals
+  soul.hunger = clamp(soul.hunger + 0.08 * min);
+  soul.restless = clamp(soul.restless + 0.4 * min);
+  if (here) T.workMin += min;
+  if (e.music) T.musicMin += min;
+  // a new day: last night's late hours count, the habits of yesterday are kept
+  if (soul.lastDay && soul.lastDay !== day) {
+    const y = soul.diary[soul.lastDay];
+    if (y && y.late > 30) T.lateNights++;
+    if (soul.lastActive) soul.bedtimes[soul.lastDay] = lateHour(new Date(soul.lastActive));
+  }
+  soul.lastDay = day;
+  if (here) soul.lastActive = now;
+  // the weather pulls the mood a little
+  if (s.weather) {
+    const w = await weatherNow(now);
+    if (w.kind === "rain") soul.joy = clamp(soul.joy - 0.1 * min);
+    if (w.kind === "storm") soul.joy = clamp(soul.joy - 0.2 * min);
+    if (w.kind === "snow") soul.joy = clamp(soul.joy + 0.1 * min);
+    if (w.kind === "clear") soul.energy = clamp(soul.energy + 0.05 * min);
+  }
+  // her words that were waiting
+  const due = soul.queue.find((q) => q.at <= now);
+  if (due && here) {
+    soul.queue = soul.queue.filter((q) => q !== due);
+    await say(ctx, db, due.key, { force: true, vars: due.vars });
+    return true;
+  }
+  soul.queue = soul.queue.filter((q) => now - q.at < 10 * 60000);
+
+  // achievements and friendship levels
+  const tot = totalsOf();
+  for (const a of ACHIEVEMENTS) {
+    if (soul.ach[a.id] || !a.need(tot)) continue;
+    soul.ach[a.id] = day;
+    queueSay("achievement", { title: a[lang] || a.en }, 3000);
+  }
+  const lv = friendship(soul.bond, lang);
+  if (lv.index > soul.level) {
+    soul.level = lv.index;
+    queueSay("levelUp", { level: lv.name }, 5000);
+  }
+
+  // a call: a microphone held for an hour, then let go
+  if (activity.mic) soul.callFrom ||= now;
+  else if (soul.callFrom) {
+    const long = now - soul.callFrom > 60 * 60000;
+    soul.callFrom = 0;
+    if (long) queueSay("callEnd", {}, 4000);
+  }
+
+  // sulking: lonely and unnoticed for 45 minutes while you are here
+  const noticed = e.attention;
+  if (noticed || !soul.noticedAt) soul.noticedAt = now;
+  if (soul.sulk) {
+    if (noticed) {
+      soul.sulk = false;
+      Object.assign(soul, { joy: clamp(soul.joy + 20), bond: clamp(soul.bond + 1), social: clamp(soul.social + 20) });
+      const h = stateFor({ names: ["as_lively_heart", "shy", "heart"] }, have);
+      if (h && free) await play(h);
+      await say(ctx, db, "sulkMakeup", { force: true });
+      return true;
+    }
+    if (free && now - soul.sulkAt > 10 * 60000) {
+      soul.sulkAt = now;
+      const sad = stateFor({ names: ["fold_arms", "sad", "sigh"] }, have);
+      if (sad) await play(sad);
+    }
+    return true; // a sulking girl does nothing else
+  }
+  if (here && soul.social < 20 && now - (soul.noticedAt || now) > 45 * 60000 && free) {
+    Object.assign(soul, { sulk: true, sulkAt: now });
+    const sad = stateFor({ names: ["fold_arms", "sad", "sigh"] }, have);
+    if (sad) await play(sad);
+    await say(ctx, db, "sulk", { force: true });
+    return true;
+  }
+
+  // wishes: granted by what she asked for
+  if (soul.wish) {
+    const w = soul.wish;
+    const done = (w.kind === "pat" && e.pat) || (w.kind === "music" && e.music) || (w.kind === "play" && e.played) || (w.kind === "talk" && e.chat);
+    if (done) {
+      soul.wish = null;
+      T.wishes++;
+      Object.assign(soul, { joy: clamp(soul.joy + 20), bond: clamp(soul.bond + 2) });
+      const y = stateFor({ names: ["as_lively_yay", "excited", "clap", "yay"] }, have);
+      if (y && free) await play(y);
+      await say(ctx, db, "wishDone", { force: true });
+      return true;
+    }
+    if (now > w.until) soul.wish = null;
+  }
+
+  // the tone of your messages to Astra
+  if (s.chatTone) {
+    for (const msg of chatMessagesSince()) {
+      e.chat = true;
+      if (soul.planAsked && !soul.plan && now - soul.planAsked < 30 * 60000) Object.assign(soul, { plan: msg.trim().slice(0, 80), planDay: day });
+      if (now - (soul.toneAt || 0) < 10 * 60000) continue;
+      const good = PRAISE.test(msg), bad = HURT.test(msg);
+      if (!good && !bad) continue;
+      soul.toneAt = now;
+      if (good) Object.assign(soul, { joy: clamp(soul.joy + 15), bond: clamp(soul.bond + 1) });
+      else Object.assign(soul, { joy: clamp(soul.joy - 20) });
+      const r = stateFor({ names: good ? ["as_lively_heart", "shy", "heart"] : ["sad", "sigh"] }, have);
+      if (r && free) await play(r);
+      await say(ctx, db, good ? "praised" : "hurt", { force: true });
+      return true;
+    }
+  } else soul.chatPos = {};
+
+  if (!free) return false;
+
+  // the goal for today
+  if (s.goalHours > 0) {
+    const g = soul.goalSaid[day] || 0, need = s.goalHours * 60;
+    if (g < 2 && today.work >= need) {
+      soul.goalSaid[day] = 2;
+      T.goals++;
+      const y = stateFor({ names: ["as_lively_yay", "celebrate", "clap"] }, have);
+      if (y) await play(y);
+      await say(ctx, db, "goalDone", { force: true });
+      return true;
+    }
+    if (g < 1 && today.work >= need / 2) {
+      soul.goalSaid[day] = 1;
+      await say(ctx, db, "goalHalf", { force: true });
+      return true;
+    }
+  }
+
+  // the tomato timer
+  const P = s.pomodoro;
+  if (P?.on) {
+    if (!here && now - soul.lastHere > 15 * 60000) soul.pomo = null;
+    else if (here && !soul.pomo) {
+      soul.pomo = { phase: "work", until: now + P.work * 60000 };
+      await say(ctx, db, "pomoStart", { force: true });
+      return true;
+    } else if (soul.pomo && now >= soul.pomo.until) {
+      const work = soul.pomo.phase === "work";
+      soul.pomo = { phase: work ? "rest" : "work", until: now + (work ? P.rest : P.work) * 60000 };
+      if (work) {
+        const t = stateFor({ names: ["stretch", "stretching"] }, have);
+        if (t) await play(t);
+      }
+      await say(ctx, db, work ? "pomoBreak" : "pomoBack", { force: true });
+      return true;
+    }
+  } else soul.pomo = null;
+
+  // care: water and your eyes, every hour and a half or so
+  if (s.care && here && soul.activeSince && now - soul.careAt > minutes(75, 100) && now - soul.activeSince > 45 * 60000) {
+    soul.careAt = now;
+    soul.careKind = soul.careKind === "water" ? "eyes" : "water";
+    await say(ctx, db, soul.careKind, { force: true });
+    return true;
+  }
+
+  // your programs: a word when you have been in one kind for three minutes (once in two hours each)
+  const kind = appKindOf(activity.proc);
+  if (kind !== soul.app.kind) soul.app = { kind, since: now };
+  for (const r of (s.appRules || [])) {
+    if (!r?.match || !r?.text || !activity.proc.includes(String(r.match).toLowerCase())) continue;
+    const k = `rule:${r.match}`;
+    if (here && now - (soul.appSeen[k] || 0) > 2 * 3600000) {
+      soul.appSeen[k] = now;
+      if (s.talk && !quietNow(s)) await ctx.fireTrigger("anim_say", { text: r.text }).catch(() => {});
+      return true;
+    }
+  }
+  if (s.apps && kind && here && now - soul.app.since > 3 * 60000 && now - (soul.appSeen[kind] || 0) > 2 * 3600000) {
+    soul.appSeen[kind] = now;
+    if (await say(ctx, db, `app_${kind}`)) return true;
+  }
+  // watching a video together: a browser or a player, and nothing touched for three minutes
+  if ((kind === "video" || kind === "browser") && activity.idleSec > 180 && activity.idleSec < 290 && now - soul.watchAt > 45 * 60000) {
+    soul.watchAt = now;
+    const t = stateFor({ names: ["think", "thinking"] }, have);
+    if (t) await play(t);
+    await say(ctx, db, "watching", { force: true });
+    return true;
+  }
+
+  // the sound and the battery
+  if (sys.seen) {
+    if (sys.mute && !soul.wasMuted && here) {
+      soul.wasMuted = true;
+      await say(ctx, db, "silence");
+      return true;
+    }
+    if (!sys.mute) soul.wasMuted = false;
+    if (sys.vol >= 90 && e.music && now - soul.loudAt > 2 * 3600000) {
+      soul.loudAt = now;
+      await say(ctx, db, "loud", { force: true });
+      return true;
+    }
+    if (sys.bat >= 0 && sys.bat < 20 && !sys.ac && now - soul.batAt > 30 * 60000) {
+      soul.batAt = now;
+      soul.batLow = true;
+      const y = stateFor({ names: ["yawn", "sleepy"] }, have);
+      if (y) await play(y);
+      await say(ctx, db, "batteryLow", { force: true });
+      return true;
+    }
+    if (soul.batLow && sys.ac) {
+      soul.batLow = false;
+      await say(ctx, db, "batteryOk", { force: true });
+      return true;
+    }
+    if (hour >= 21 && sys.wins >= 12 && soul.cleanupDay !== day && here) {
+      soul.cleanupDay = day;
+      await say(ctx, db, "cleanup", { force: true });
+      return true;
+    }
+  }
+
+  // the weather, once a kind (and the cold, the heat)
+  if (s.weather && here && soul.weather.kind && soul.weatherSaid !== `${day}:${soul.weather.kind}`) {
+    const w = soul.weather;
+    const key = w.temp <= -5 ? "weatherCold" : w.temp >= 28 ? "weatherHot"
+      : { rain: "weatherRain", snow: "weatherSnow", clear: "weatherSun", storm: "weatherStorm" }[w.kind];
+    soul.weatherSaid = `${day}:${w.kind}`;
+    if (key && (await say(ctx, db, key))) return true;
+  }
+
+  // near your usual bedtime
+  const beds = Object.values(soul.bedtimes).slice(-7);
+  const bed = beds.length >= 3 ? median(beds) : null;
+  const nowH = lateHour(new Date(now));
+  if (bed && here && Math.abs(nowH - bed) < 0.34 && soul.bedSaid !== day) {
+    soul.bedSaid = day;
+    soul.energy = clamp(soul.energy - 10);
+    const y = stateFor({ names: ["yawn", "sleepy"] }, have);
+    if (y) await play(y);
+    await say(ctx, db, "bedtimeHint", { force: true });
+    return true;
+  }
+
+  // the morning plan, and in the evening: did it work out?
+  if (here && hour >= 9 && hour < 12 && soul.planAskedDay !== day && s.questions) {
+    soul.planAskedDay = day;
+    soul.planAsked = now;
+    if (soul.planDay !== day) soul.plan = "";
+    await say(ctx, db, "plan", { force: true });
+    return true;
+  }
+  const plan = soul.planDay === day ? soul.plan : s.planDay === day ? s.plan : "";
+  if (plan && here && hour >= 19 && hour < 23 && soul.planCheckDay !== day) {
+    soul.planCheckDay = day;
+    await say(ctx, db, "planCheck", { force: true, vars: { plan } });
+    return true;
+  }
+
+  // a hobby for a few days
+  if (!soul.hobby || now - soul.hobby.since > minutes(2 * 1440, 3 * 1440)) {
+    const kinds = Object.keys(HOBBIES).filter((k) => k !== soul.hobby?.kind);
+    soul.hobby = { kind: pick(kinds), since: now };
+    if (here) {
+      await say(ctx, db, "hobbyNew", { force: true, vars: { hobby: HOBBIES[soul.hobby.kind][lang] || HOBBIES[soul.hobby.kind].en } });
+      return true;
+    }
+  }
+  if (here && soul.hobbyDay !== day && Math.random() < 0.02) {
+    soul.hobbyDay = day;
+    if (await say(ctx, db, `hobby_${soul.hobby.kind}`)) return true;
+  }
+
+  // a wish now and then
+  if (here && !soul.wish && mood !== "sleepy" && now - soul.wishAt > minutes(120, 200)) {
+    soul.wishAt = now;
+    const kinds = ["pat", "talk", ...(s.play ? ["play"] : []), ...(e.music ? [] : ["music"])];
+    soul.wish = { kind: pick(kinds), until: now + 20 * 60000 };
+    await say(ctx, db, `wish_${soul.wish.kind}`, { force: true });
+    return true;
+  }
+
+  // a gift every few days
+  if (here && now - soul.giftAt > minutes(2 * 1440, 4 * 1440)) {
+    soul.giftAt = now;
+    const list = GIFTS[lang] || GIFTS.en;
+    soul.gifts.unshift({ day, text: pick(list) });
+    soul.gifts = soul.gifts.slice(0, 30);
+    const h = stateFor({ names: ["as_lively_heart", "heart", "shy"] }, have);
+    if (h) await play(h);
+    await say(ctx, db, "gift", { force: true });
+    return true;
+  }
+
+  // a word by Astra's AI, once in two hours (when allowed and listed)
+  if (s.aiWords && here && now - soul.aiAt > 2 * 3600000 && !quietNow(s)) {
+    soul.aiAt = now;
+    const text = await aiWord(ctx, db, mood, hour);
+    if (text && s.talk) {
+      await ctx.fireTrigger(voiceTrigger(s, mood), { text }).catch(() => {});
+      return true;
+    }
+  }
+  return false;
+}
+
+// the greeting for a day: a date, yesterday, a habit, the day of the week — or just morning / back
+function greetingKey(s, base, now, day, hour) {
+  const d = new Date(now), md = `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  if (base === "missed") return { key: "missed" };
+  if (soul.greetDay === day) return { key: base };
+  soul.greetDay = day;
+  if (md === "12-31" || md === "01-01") return { key: "newYear" };
+  if (s.birthday && md === s.birthday) return { key: "birthday" };
+  if (md === "10-31") return { key: "halloween" };
+  if (md === "02-14") return { key: "valentine" };
+  if (md === "03-08") return { key: "womensDay" };
+  if (soul.firstDay) {
+    const f = new Date(soul.firstDay);
+    const months = (d.getFullYear() - f.getFullYear()) * 12 + d.getMonth() - f.getMonth();
+    if (months > 0 && d.getDate() === f.getDate()) return months % 12 === 0 ? { key: "anniversaryYear" } : { key: "anniversaryMonth", vars: { months } };
+  }
+  const arrivals = Object.values(soul.arrivals).slice(-7);
+  const usual = arrivals.length >= 3 ? median(arrivals) : null;
+  soul.arrivals[day] = hour + d.getMinutes() / 60;
+  const days = Object.keys(soul.arrivals).sort();
+  while (days.length > 21) delete soul.arrivals[days.shift()];
+  if (usual !== null && hour + d.getMinutes() / 60 - usual > 1.5) return { key: "waited" };
+  return { key: base, follow: true };
+}
+
+// what comes after a morning greeting: yesterday, a dream, the day of the week, the season
+function morningFollowUps(day, now) {
+  const d = new Date(now);
+  const y = new Date(now - 86400000), yk = dayKey(y);
+  const yd = soul.diary[yk];
+  if (yd?.late > 30) queueSay("yesterdayLate", {}, 8000);
+  else if (yd && yd.pats >= 5) queueSay("yesterdayFun", {}, 8000);
+  if (Math.random() < 0.35) queueSay("dream", {}, 25000);
+  const wd = d.getDay();
+  if (wd === 1) queueSay("monday", {}, 45000);
+  else if (wd === 5) queueSay("friday", {}, 45000);
+  else if ((wd === 0 || wd === 6) && Math.random() < 0.6) queueSay("weekend", {}, 45000);
+  else if (Math.random() < 0.15) queueSay(["winter", "winter", "spring", "spring", "spring", "summer", "summer", "summer", "autumn", "autumn", "autumn", "winter"][d.getMonth()], {}, 45000);
+}
+
+// ── things she holds and things around her: a block of her own in her pack ─────────
+// A book, a cup, a plush bear in her hands (her pastimes "reads", "tea", "hugs") and the sky of the hour around her: sparkles in the morning, fireflies in the evening, stars
+// at night. Like Anim Studio's faces and work panels: props and effects in the worn character's own
+// pack between two marker lines, the effects added to the pack's hub; the pack is read when the
+// avatar starts, so a change (or a new part of the day) waits until nobody has touched the computer
+// for a minute and restarts the avatar.
+var LIFE_BEGIN = "# ── Companion Life: things she holds and things around her (written by the plugin) ──";
+var LIFE_END = "# ── end of Companion Life ──";
+var LIFE_DIR = "clips/companion-life";
+var LIFE_FILES = { "book.glb": BOOK_GLB, "cup.glb": CUP_GLB, "plush.glb": PLUSH_GLB, "hold.vrma": HOLD_VRMA, "hug.vrma": HUG_VRMA, "star.png": STAR_PNG, "firefly.png": FIREFLY_PNG };
+// her own holding poses (tools/gen_hold.cjs): forearms forward, palms toward the thing; the thing is
+// placed between her hands with no fingertip grip (that one turns the palms down, for typing)
+var HOLD = { cl_read: { prop: "book.glb", pose: "hold", place: [0.42, 0.3, 45, 0.85] },
+  cl_tea: { prop: "cup.glb", pose: "hold", place: [0.4, 0.31, 0, 1.2] },
+  cl_hug: { prop: "plush.glb", pose: "hug", place: [0.3, 0.27, 0, 1.2] } };
+// things in her hands are not ready yet: kept here, never written into her pack until this is true
+var PROPS_READY = false;
+var skyPeriod = (h) => (h >= 5 && h < 11 ? "morning" : h >= 18 && h < 22 ? "evening" : h >= 22 || h < 5 ? "night" : "");
+
+function tomlTable(text, name) {
+  const head = new RegExp(`^\\[${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\][ \\t]*(#[^\\r\\n]*)?$`, "m").exec(text);
+  if (!head) return "";
+  const from = head.index + head[0].length, next = text.slice(from).search(/^\[/m);
+  return text.slice(head.index, next < 0 ? text.length : from + next);
+}
+var hubOf = (text) => /^\s*clip\s*=\s*"([^"]+)"/m.exec(tomlTable(text, "interactions.none"))?.[1] || "";
+function idleClipOf(text) {
+  const head = /^\[states\.idle\][ \t]*(#[^\r\n]*)?$/m.exec(text);
+  if (!head) return "";
+  const rest = text.slice(head.index + head[0].length);
+  const end = rest.search(/^\[(?!\[?states\.idle\.)/m);
+  return /^\s*clip\s*=\s*"([^"]+)"/m.exec(end < 0 ? rest : rest.slice(0, end))?.[1] || "";
+}
+
+// the block for this pack, the hour and the switches; "" when nothing is asked for or the pack has no hub
+function lifeBlock(text, s, hour) {
+  const hub = hubOf(text), idle = idleClipOf(text);
+  if (!hub || !idle) return { rows: "", names: [] };
+  const has = (st) => new RegExp(`^\\[states\\.${st}\\]`, "m").test(text);
+  const L = [], names = [];
+  const calm = ["idle", "cl_read", "cl_tea", "cl_hug", "as_sleep", "sit"].filter((x) => x.startsWith("cl_") ? s.props : has(x));
+  if (s.props) {
+    for (const pose of ["hold", "hug"]) L.push("[[clips]]", `name = "cl_${pose}"`, `file = "${LIFE_DIR}/${pose}.vrma"`, "fade = 0.8", "");
+    for (const [st, h] of Object.entries(HOLD)) {
+      const [fwd, down, tilt, scale] = h.place;
+      L.push("[[props]]", `name = "${st}"`, `file = "${LIFE_DIR}/${h.prop}"`, "",
+        `[states.${st}]`, `clip = "cl_${h.pose}"`, "loop = true");
+      if (has("drag")) L.push(`[[states.${st}.transitions]]`, 'on = "dragged"', 'to = "drag"');
+      if (has("as_work")) L.push(`[[states.${st}.transitions]]`, 'on = "action_start"', 'to = "as_work"');
+      L.push(`[[states.${st}.transitions]]`, 'on = "idle_timeout"', 'to = "idle"', "",
+        // it comes in once her hands are there, and goes before they drop
+        `[effects.${st}]`, 'kind = "contacts"', `prop = "${st}"`, `pet_states = ["${st}"]`, "fade_in = 0.9", "fade_out = 0.4",
+        `[effects.${st}.place]`, `forward = ${fwd.toFixed(2)}`, `down = ${down.toFixed(2)}`, `tilt = ${tilt.toFixed(1)}`, "ref_arm = 0.45", `scale = ${scale.toFixed(2)}`, "follow = 1.0",
+        `[effects.${st}.contacts]`, "");
+      names.push(st);
+    }
+  }
+  const period = s.sky ? skyPeriod(hour) : "";
+  if (period) {
+    const sky = { morning: { prop: "builtin:nayu-anims/sparkle.png", rate: "[0.8, 1.2]", size: "[0.04, 0.06]", area: "[0.5, 0.4]", rise: "0.05", life: "[1.0, 1.6]" },
+      evening: { prop: `${LIFE_DIR}/firefly.png`, rate: "[0.6, 1.0]", size: "[0.03, 0.05]", area: "[0.6, 0.7]", rise: "0.03", life: "[2.0, 3.0]" },
+      night: { prop: `${LIFE_DIR}/star.png`, rate: "[0.5, 0.8]", size: "[0.04, 0.07]", area: "[0.6, 0.25]", rise: "0.01", life: "[2.5, 3.5]" } }[period];
+    L.push("[[props]]", 'name = "cl_sky"', `file = "${sky.prop}"`, "",
+      "[effects.cl_sky]", 'kind = "emit"', 'prop = "cl_sky"', `pet_states = [${calm.map((x) => `"${x}"`).join(", ")}]`, "fade_in = 1.0", "fade_out = 1.0",
+      "[effects.cl_sky.emit]", 'bone = "head"', 'axes = "view"', 'shape = "box"', `offset = [0.0, ${period === "night" ? "0.22" : "0.0"}, 0.1]`, `area = ${sky.area}`,
+      `rate = ${sky.rate}`, "burst = 1", "max = 8", `life = ${sky.life}`, "speed = [0.0, 0.01]", `rise = ${sky.rise}`, "drag = 0.5",
+      `size = ${sky.size}`, "pop = 0.2", "fade = 0.5", "tilt = [-20.0, 20.0]", "sway = 8.0", "sway_hz = 0.6", "");
+    names.push("cl_sky");
+  }
+  return { rows: L.join("\n"), names, hub };
+}
+
+// her pack with the block as it should be now; the files it names written beside it
+function writeLifeBlock(s, hour = new Date().getHours()) {
+  const f = basePackFile();
+  if (!f) return false;
+  let text = import_node_fs.readFileSync(f, "utf8");
+  const b = text.indexOf(LIFE_BEGIN);
+  if (b >= 0) {
+    const e = text.indexOf(LIFE_END, b);
+    text = text.slice(0, b).replace(/\n+$/, "\n") + (e >= 0 ? text.slice(e + LIFE_END.length).replace(/^\n+/, "") : "");
+  }
+  const { rows, names, hub } = lifeBlock(text, { ...s, props: s.props && PROPS_READY }, hour);
+  // the hub brings our effects along (ours replaced, everyone else's kept)
+  if (hub) {
+    const head = new RegExp(`^\\[effects\\.${hub}\\][ \\t]*$`, "m").exec(text);
+    if (head) {
+      const from = head.index + head[0].length, next = text.slice(from).search(/^\[/m), until = next < 0 ? text.length : from + next;
+      let table = text.slice(from, until);
+      const w = /^with\s*=\s*\[([^\]\n]*)\][ \t]*$/m.exec(table);
+      const kept = w ? [...w[1].matchAll(/"([^"]*)"/g)].map((m) => m[1]).filter((n) => !n.startsWith("cl_")) : [];
+      const all = [...kept, ...names];
+      const line = all.length ? `with = [${all.map((n) => JSON.stringify(n)).join(", ")}]` : "";
+      if (w) table = line ? table.replace(w[0], line) : table.replace(w[0] + "\n", "");
+      else if (line) table = `\n${line}${table}`;
+      text = text.slice(0, from) + table + text.slice(until);
+    }
+  }
+  if (rows) {
+    const dir = import_node_path.join(import_node_path.dirname(f), ...LIFE_DIR.split("/"));
+    import_node_fs.mkdirSync(dir, { recursive: true });
+    // only the files the block names
+    for (const [n, data] of Object.entries(LIFE_FILES)) {
+      if (!rows.includes(`${LIFE_DIR}/${n}`)) continue;
+      const p = import_node_path.join(dir, n);
+      if (!import_node_fs.existsSync(p) || import_node_fs.statSync(p).size !== data.length) import_node_fs.writeFileSync(p, data);
+    }
+    text = `${text.replace(/\n+$/, "\n")}\n${LIFE_BEGIN}\n${rows}\n${LIFE_END}\n`;
+  }
+  const before = import_node_fs.readFileSync(f, "utf8");
+  if (before === text) return false;
+  if (!import_node_fs.existsSync(f + ".before-companion-life")) import_node_fs.copyFileSync(f, f + ".before-companion-life");
+  import_node_fs.writeFileSync(f, text);
+  return true;
+}
+
+// the pack is read when the avatar starts: a change waits for a quiet minute, then a restart
+var lifePack = { pending: false, period: null, checkedAt: 0 };
+async function restartAvatar() {
+  await new Promise((r) => import_node_child_process.execFile("powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", "Stop-Process -Name astra-avatar-engine -Force -ErrorAction SilentlyContinue"], { windowsHide: true }, () => r()));
+  soul.packStates = null;
+}
+async function lifePackTick(s, now, hour) {
+  if (now - lifePack.checkedAt < 60000 && !lifePack.pending) return;
+  lifePack.checkedAt = now;
+  const period = s.sky ? skyPeriod(hour) : "";
+  if (lifePack.period !== period || lifePack.dirty) {
+    lifePack.dirty = false;
+    lifePack.period = period;
+    try {
+      if (writeLifeBlock(s, hour)) lifePack.pending = true;
+    } catch {}
+  }
+  if (lifePack.pending && activity.seen && activity.idleSec >= 60 && standing()) {
+    lifePack.pending = false;
+    await restartAvatar();
   }
 }
 
@@ -407,7 +1107,7 @@ async function soulTick(ctx) {
     // days apart
     if (soul.lastHere) soul.bond = bondAfterAbsence(soul.bond, Math.floor((now - soul.lastHere) / 86400000));
   }
-  if (!soul.firstDay) soul.firstDay = day;
+  if (!soul.firstDay) Object.assign(soul, { firstDay: day, giftAt: now, wishAt: now });
   const min = Math.min(10, soul.at ? (now - soul.at) / 60000 : 0);
   soul.at = now;
   if (soul.day !== day) Object.assign(soul, { day, snacks: [] });
@@ -421,11 +1121,15 @@ async function soulTick(ctx) {
     if (hour < 5) today.late += min;
   }
   if (music) today.music += min;
-  const c = { hour, day, music, here, away, near: activity.over >= 10, asleep: dozing.on, snacks: soul.snacks };
+  // her hobby and her restlessness make some pastimes likelier; hunger opens a snack any time
+  const boost = { ...(soul.hobby ? HOBBIES[soul.hobby.kind]?.pastimes : {}) };
+  if (soul.restless > 70) for (const k of ["spin", "peek", "stretch", "yay"]) boost[k] = (boost[k] || 1) * 2;
+  const c = { hour, day, music, here, away, near: activity.over >= 10, asleep: dozing.on, snacks: soul.snacks, hungry: soul.hunger > 75, boost };
   driftSoul(soul, min, c, pers);
   if (ev.pat) {
     Object.assign(soul, { joy: clamp(soul.joy + 15), social: clamp(soul.social + 20), boredom: clamp(soul.boredom - 20), bond: clamp(soul.bond + 0.5 * ev.pat) });
     today.pats += ev.pat;
+    soul.totals.pats += ev.pat;
   }
   if (ev.work) {
     Object.assign(soul, { social: clamp(soul.social + 10), boredom: clamp(soul.boredom - 10), bond: clamp(soul.bond + 0.3) });
@@ -442,6 +1146,12 @@ async function soulTick(ctx) {
     soul.doingAt = now;
     await ctx.fireTrigger("anim_play", { state }).catch(() => {});
   };
+  if (soul.holding && now > soul.holding) {
+    soul.holding = null;
+    if (standing(st)) await ctx.fireTrigger("anim_play", { state: "idle" }).catch(() => {});
+  }
+  // the block in her pack (things in her hands, the kitten, the sky of the hour)
+  lifePackTick(s, now, hour).catch(() => {});
 
   // ── you came back, the first time today, after hours, after days ──
   if (activity.idleSec >= AWAY_SEC && !soul.wasAway) Object.assign(soul, { wasAway: true, awayFrom: now - activity.idleSec * 1000 });
@@ -452,13 +1162,15 @@ async function soulTick(ctx) {
       soul.wasAway = false;
       Object.assign(soul, { joy: clamp(soul.joy + 20), social: clamp(soul.social + 15) });
       const days = Math.floor(gone / 86400000);
-      const key = days >= 2 ? "missed" : first && hour < 12 ? "morning" : gone > 3 * 3600000 ? "backLong" : "back";
+      const base = days >= 2 ? "missed" : first && hour < 12 ? "morning" : gone > 3 * 3600000 ? "backLong" : "back";
       if (first) soul.morningDay = day;
+      const g = first ? greetingKey(s, base, now, day, hour) : { key: base };
       if (free) {
         const wave = stateFor({ names: ["hello", "wave", "greeting"] }, have);
         if (wave) await play(wave);
       }
-      await say(ctx, db, key, { force: true, vars: { days } });
+      await say(ctx, db, g.key, { force: true, vars: { days, ...g.vars } });
+      if (first && hour < 13) morningFollowUps(day, now);
     }
     soul.lastHere = now;
   }
@@ -504,7 +1216,7 @@ async function soulTick(ctx) {
     return;
   }
   if (soul.gameFrom && now - soul.gameLast > 90000) {
-    const long = soul.gameLast - soul.gameFrom > 10 * 60000;
+    const long = soul.gameLast - soul.gameFrom > 10 * 60000, veryLong = soul.gameLast - soul.gameFrom > 2 * 3600000;
     soul.gameFrom = 0;
     if (long) {
       today.games++;
@@ -512,11 +1224,20 @@ async function soulTick(ctx) {
       if (s.games && free) {
         const r = stateFor({ names: Math.random() < 0.5 ? ["as_lively_yay", "excited", "clap"] : ["hello", "wave", "thankful"] }, have);
         if (r) await play(r);
-        await say(ctx, db, "gameEnd", { force: true });
+        await say(ctx, db, veryLong ? "gameJealous" : "gameEnd", { force: true });
         return;
       }
     }
   }
+
+  // ── quiet time: nothing of her own until it is over ──
+  if (s.dndUntil > now) return;
+  // ── the rest of her life ──
+  const attention = ev.pat > 0 || activity.over >= 8 || ev.work > 0;
+  const extra = await extrasTick(ctx, db, { now, hour, day, here, free, have, play, today, min, mood: moodOf(soul, hour), music,
+    attention, pat: ev.pat > 0, played: soul.played, chat: ev.work > 0 });
+  soul.played = false;
+  if (extra || soul.sulk) return;
 
   if (!free) return;
 
@@ -580,7 +1301,7 @@ async function soulTick(ctx) {
     await say(ctx, db, "question", { force: true });
     return;
   }
-  if (here && soul.bond > 60 && now - soul.affectionAt > 3 * 3600000 && Math.random() < 0.3) {
+  if (here && soul.bond >= 45 && now - soul.affectionAt > 3 * 3600000 && Math.random() < 0.3) {
     soul.affectionAt = now;
     const h = stateFor({ names: ["as_lively_heart", "heart", "shy"] }, have);
     if (h) await play(h);
@@ -588,11 +1309,21 @@ async function soulTick(ctx) {
     return;
   }
 
+  if (soul.hunger > 80 && !(soul.cool.hungry > now)) {
+    soul.cool.hungry = now + 3 * 3600000;
+    queueSay("hungry", {}, 2000);
+  } else if (soul.restless > 85 && !(soul.cool.restless > now)) {
+    soul.cool.restless = now + 2 * 3600000;
+    queueSay("restless", {}, 2000);
+  }
   const p = pickPastime(mood, c, have, soul.cool, now, Math.random, pers);
   if (!p) return;
   soul.cool[p.id] = now + minutes(12, 25);
   if (p.snack) soul.snacks.push(`${day}:${hour < 15 ? 1 : hour < 18 ? 2 : 3}`);
   soul.boredom = clamp(soul.boredom - 25);
+  soul.restless = clamp(soul.restless - (["spin", "peek", "stretch", "yay"].includes(p.id) ? 50 : 15));
+  if (p.snack) soul.hunger = clamp(soul.hunger - 60);
+  if (p.hold) soul.holding = now + minutes(0.4, 0.8);
   today.pastimes++;
   if (p.id === "call" || p.id === "heart") soul.social = clamp(soul.social + 5);
   if (p.nap) {
@@ -704,14 +1435,19 @@ async function wakeTick(ctx) {
 // added to the file and appear after Astra is restarted.
 var COMMANDS = import_node_path.join(CFG, "commands.json");
 var TRIGGER_PREFIX = "plugin__companion_life__";
-var COMMAND_TRIGGERS = ["anim_play", "anim_say"];
+var COMMAND_TRIGGERS = ["anim_play", "anim_say", "anim_say_soft", "anim_say_bright"];
 
 function commandSpecs(ru) {
   return [
     { trigger: "anim_play", name: ru ? "Companion Life: занятие" : "Companion Life: a pastime",
       action: { mode: "state", state: "{state}", trigger: "", type: "companion_animation" } },
     { trigger: "anim_say", name: ru ? "Companion Life: сказать" : "Companion Life: say",
-      action: { text: "{text}", tts_pitch: 1, tts_speed: 0.85, type: "speak", use_settings_voice: false, voices: {} } }
+      action: { text: "{text}", tts_pitch: 1, tts_speed: 0.85, type: "speak", use_settings_voice: false, voices: {} } },
+    // the voice for the mood: softer and slower when sleepy or lonely, brighter when happy
+    { trigger: "anim_say_soft", name: ru ? "Companion Life: сказать тихо" : "Companion Life: say softly",
+      action: { text: "{text}", tts_pitch: 0.96, tts_speed: 0.75, type: "speak", use_settings_voice: false, voices: {} } },
+    { trigger: "anim_say_bright", name: ru ? "Companion Life: сказать бодро" : "Companion Life: say brightly",
+      action: { text: "{text}", tts_pitch: 1.07, tts_speed: 0.95, type: "speak", use_settings_voice: false, voices: {} } }
   ];
 }
 
@@ -772,20 +1508,53 @@ function createCommands(ctx) {
 function getState(ctx) {
   const db = loadDb();
   const have = packStates();
+  const lang = langOf(db.soul);
+  const lv = friendship(soul.bond, lang);
   return { soul: { ...db.soul, now: soulNow() }, commands: commandsStatus(ctx), character: activeCharacter(), ownPack: !!basePackFile(),
-    characters: CHARACTERS, diary: diaryList(db),
-    pastimes: PASTIMES.map((p) => ({ id: p.id, state: stateFor(p, have) })) };
+    characters: CHARACTERS, langs: LANGS, diary: diaryList(db),
+    pastimes: PASTIMES.map((p) => ({ id: p.id, state: stateFor(p, have) })),
+    level: { ...lv, next: LEVELS[lv.index + 1]?.min ?? null, levels: LEVELS.map((l) => l[lang] || l.en) },
+    achievements: ACHIEVEMENTS.map((a) => ({ id: a.id, title: a[lang] || a.en, at: soul.ach[a.id] || "" })),
+    gifts: soul.gifts, totals: totalsOf(), hunger: Math.round(soul.hunger), restless: Math.round(soul.restless),
+    hobby: soul.hobby ? HOBBIES[soul.hobby.kind]?.[lang] || soul.hobby.kind : "", wish: soul.wish?.kind || "", sulk: soul.sulk,
+    pomo: soul.pomo, weather: soul.weather, sys, plan: soul.planDay === dayKey() ? soul.plan : "", aiBlocked: soul.aiBlocked,
+    canAi: typeof ctx?.sendChatMessage === "function", packPending: lifePack.pending,
+    keys: Object.keys(PHRASES.ru), usual: { arrive: median(Object.values(soul.arrivals).slice(-7)), bed: median(Object.values(soul.bedtimes).slice(-7)) } };
 }
+
+// settings worth sharing: her character, her words, your rules (not her memories)
+var SHARED = ["character", "name", "custom", "appRules", "quiet", "pomodoro", "lang", "voiceMood", "props", "sky"];
 
 export const app = plugin({
   id: "companion-life",
+  tools: {
+    companion_quiet: tool({
+      description: "Companion Life: keep the avatar quiet and still for a while (no pastimes, no words) — when the user asks her not to disturb. Не мешать: тишина на N минут.",
+      input: schema.object({ minutes: schema.number().describe("how long, minutes (0 ends it)") }),
+      run: async ({ minutes: m }) => {
+        const st = loadDb().soul;
+        st.dndUntil = Number(m) > 0 ? Date.now() + Math.min(600, Number(m)) * 60000 : 0;
+        saveSettings(st);
+        return st.dndUntil ? `quiet until ${new Date(st.dndUntil).toLocaleTimeString()}` : "quiet time over";
+      }
+    }),
+    companion_mood: tool({
+      description: "Companion Life: how the avatar feels now — her mood, needs, attachment level, hobby, today's diary. Как она себя чувствует.",
+      input: schema.object({}),
+      run: async () => JSON.stringify({ ...soulNow(), level: friendship(soul.bond, langOf(loadDb().soul)).name,
+        hobby: soul.hobby?.kind || "", wish: soul.wish?.kind || "", sulk: soul.sulk })
+    })
+  },
   triggers: {
     anim_play: { label: "Companion Life: the avatar plays a state ({state})", fields: [] },
-    anim_say: { label: "Companion Life: a phrase to say ({text})", fields: [] }
+    anim_say: { label: "Companion Life: a phrase to say ({text})", fields: [] },
+    anim_say_soft: { label: "Companion Life: a phrase to say softly ({text})", fields: [] },
+    anim_say_bright: { label: "Companion Life: a phrase to say brightly ({text})", fields: [] }
   },
   onStart: async (ctx) => {
     ctxLang = ctx.language || "ru";
     startWatch(ctx);
+    startSys();
   },
   ui: {
     contributions: [{
@@ -799,7 +1568,30 @@ export const app = plugin({
       setSoul: async (p) => {
         const s = loadDb().soul;
         const patch = p.patch || {};
-        for (const k of ["on", "talk", "calls", "games", "questions", "play", "setup"]) if (k in patch) s[k] = !!patch[k];
+        for (const k of ["on", "talk", "calls", "games", "questions", "play", "setup", "weather", "apps", "voiceMood", "care", "chatTone", "aiWords"]) if (k in patch) s[k] = !!patch[k];
+        // the block in her pack: a change is written at once and the avatar restarts at the next quiet minute
+        for (const k of ["props", "sky"]) if (k in patch) {
+          s[k] = !!patch[k];
+          lifePack.dirty = true;
+          lifePack.checkedAt = 0;
+        }
+        if ("lang" in patch && ["auto", ...LANGS].includes(patch.lang)) s.lang = patch.lang;
+        if ("goalHours" in patch) s.goalHours = Math.max(0, Math.min(16, Number(patch.goalHours) || 0));
+        if ("birthday" in patch) s.birthday = /^\d{2}-\d{2}$/.test(String(patch.birthday)) ? String(patch.birthday) : "";
+        if ("plan" in patch) Object.assign(s, { plan: String(patch.plan || "").trim().slice(0, 80), planDay: dayKey() });
+        if (patch.pomodoro) {
+          if ("on" in patch.pomodoro) s.pomodoro.on = !!patch.pomodoro.on;
+          if ("work" in patch.pomodoro) s.pomodoro.work = Math.max(5, Math.min(120, Number(patch.pomodoro.work) || 25));
+          if ("rest" in patch.pomodoro) s.pomodoro.rest = Math.max(1, Math.min(60, Number(patch.pomodoro.rest) || 5));
+        }
+        if (Array.isArray(patch.appRules)) s.appRules = patch.appRules.filter((r) => r?.match && r?.text).map((r) => ({ match: String(r.match).slice(0, 60), text: String(r.text).slice(0, 200) })).slice(0, 50);
+        if (patch.custom && typeof patch.custom === "object") {
+          s.custom = {};
+          for (const [k, v] of Object.entries(patch.custom)) {
+            const list = (Array.isArray(v) ? v : String(v).split(/\r?\n/)).map((x) => String(x).trim()).filter(Boolean).slice(0, 50);
+            if (list.length && PHRASES.ru[k]) s.custom[k] = list;
+          }
+        }
         if ("pace" in patch) s.pace = Math.max(0.3, Math.min(3, Number(patch.pace) || 1));
         if ("character" in patch && CHARACTERS.includes(patch.character)) s.character = patch.character;
         if ("name" in patch) s.name = String(patch.name || "").trim().slice(0, 30);
@@ -810,6 +1602,32 @@ export const app = plugin({
         saveSettings(s);
         soul.next = 0;
         return s;
+      },
+      // quiet time from the page (minutes; 0 ends it)
+      quiet: async (p) => {
+        const st = loadDb().soul;
+        st.dndUntil = Number(p.minutes) > 0 ? Date.now() + Math.min(600, Number(p.minutes)) * 60000 : 0;
+        saveSettings(st);
+        return st.dndUntil;
+      },
+      exportSettings: async () => {
+        const st = loadDb().soul;
+        return JSON.stringify(Object.fromEntries(SHARED.map((k) => [k, st[k]])), null, 2);
+      },
+      importSettings: async (p) => {
+        const data = JSON.parse(String(p.json || "{}"));
+        const st = loadDb().soul;
+        for (const k of SHARED) if (k in data) st[k] = data[k];
+        saveSettings(st);
+        lifePack.dirty = true;
+        return true;
+      },
+      // write the block into her pack now and restart the avatar
+      applyPack: async () => {
+        const changed = writeLifeBlock(loadDb().soul);
+        lifePack.pending = false;
+        await restartAvatar();
+        return { changed };
       },
       // something now, whatever the clock says
       nudge: async () => {
@@ -826,8 +1644,9 @@ export const app = plugin({
       // a word right away, to hear her (the page's "try")
       sayNow: async (p, ctx) => {
         const s = loadDb().soul;
-        const text = phraseFor(ctxLang === "ru" ? "ru" : "en", String(p.key || "pat"), s.character, { name: s.name, days: 3, hour: 2, hours: "2 ч",
-          work: "3 ч", pats: 5, naps: 1, music: "40 мин", games: 2 });
+        const text = phraseFor(langOf(s), String(p.key || "pat"), s.character, { name: s.name, days: 3, hour: 2, hours: "2 ч",
+          work: "3 ч", pats: 5, naps: 1, music: "40 мин", games: 2, months: 1, hobby: "пение", title: "Неделя вместе", level: "друзья", plan: "доделать проект" },
+          Math.random, s.custom?.[String(p.key || "pat")]);
         if (text) await ctx.fireTrigger("anim_say", { text }).catch(() => {});
         return text;
       },
@@ -837,6 +1656,7 @@ export const app = plugin({
   healthCheck: () => ({ healthy: true, status: "ok" })
 });
 // for test/*.test.mjs
-export const internals = { moodOf, driftSoul, pickPastime, stateFor, bondAfterAbsence, quietNow, PASTIMES, PHRASES, CHARACTERS, phraseFor,
-  standing, soul, soulNow, soulTick, diaryToday, spanText, PERSONALITIES, activity: () => activity };
+export const internals = { PROPS_READY, moodOf, driftSoul, pickPastime, stateFor, bondAfterAbsence, quietNow, PASTIMES, PHRASES, CHARACTERS, phraseFor,
+  standing, soul, soulNow, soulTick, diaryToday, spanText, PERSONALITIES, activity: () => activity, appKindOf, friendship, greetingKey, lifeBlock,
+  writeLifeBlock, voiceTrigger, langOf, ACHIEVEMENTS, LEVELS, HOBBIES, GIFTS, totalsOf, lateHour, median };
 if (require.main === module) app.run();

@@ -3,7 +3,9 @@
 // a character's own (cheerful, shy, lazy, energetic, tsundere) — those are picked more often when she
 // has that character. `{name}` is how she calls you (left out, with its comma, when it is not set);
 // the diary's `{work}`, `{pats}`… are filled from the day.
+import { MORE } from "./phrases2";
 export const CHARACTERS = ["cheerful", "shy", "lazy", "energetic", "tsundere"];
+export const LANGS = ["ru", "en", "ja"];
 
 export const PHRASES = {
   ru: {
@@ -258,13 +260,18 @@ export const PHRASES = {
   }
 };
 
+// the second book of her words joins the first; Japanese has only the second book's shape
+PHRASES.ja = {};
+for (const lang of LANGS) Object.assign(PHRASES[lang], MORE[lang] || {});
+
 // a phrase for `key`, her character's own more often than not; vars fill {name}, {hours}…
-export function phraseFor(lang, key, character, vars = {}, rnd = Math.random) {
+// `extra`: your own phrases for the key (picked half the time when there are any)
+export function phraseFor(lang, key, character, vars = {}, rnd = Math.random, extra = null) {
   const book = PHRASES[lang] || PHRASES.en;
   const pool = book[key] || PHRASES.en[key];
-  if (!pool) return "";
-  const own = pool[character];
-  const list = own && rnd() < 0.6 ? own : pool.any;
+  if (!pool && !extra?.length) return "";
+  const own = pool?.[character];
+  const list = extra?.length && (!pool || rnd() < 0.5) ? extra : own && rnd() < 0.6 ? own : pool.any;
   let text = list[Math.floor(rnd() * list.length)];
   for (const [k, v] of Object.entries(vars)) if (k !== "name") text = text.split(`{${k}}`).join(String(v));
   // {name}: as she calls you, or left out with the comma before it

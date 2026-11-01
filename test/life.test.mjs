@@ -114,9 +114,81 @@ test("a tick plays a pastime of her pack through the plugin's command, and the d
   fs.writeFileSync(path.join(pack, "animpacks", "her-anims", "animpack.toml"), '[states.idle]\nclip = "a"\n[states.yawning]\nclip = "y"\n');
   const fired = [];
   const day = new Date();
+  const today = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+  // the rest of her life has had its turn already today: a hobby, a wish, a gift, the plan
   Object.assign(soul, { at: Date.now(), energy: 10, boredom: 20, social: 60, joy: 60, next: 1, said: 0, cool: {}, packStates: null,
-    morningDay: `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`, lateAt: Date.now(), activeSince: 0 });
+    morningDay: today, lateAt: Date.now(), activeSince: 0, hobby: { kind: "read", since: Date.now() }, wishAt: Date.now(), giftAt: Date.now(),
+    planAskedDay: today, lastDay: today, firstDay: today });
   await soulTick({ fireTrigger: async (t, p) => fired.push([t, p]) });
   assert.deepEqual(fired[0], ["anim_play", { state: "yawning" }]);
   assert.equal(diaryToday().pastimes, 1);
+});
+
+test("the rest of her life: your programs, friendship levels, the voice for the mood, achievements", () => {
+  const { appKindOf, friendship, voiceTrigger, ACHIEVEMENTS, lateHour, median } = internals;
+  assert.equal(appKindOf("code"), "code");
+  assert.equal(appKindOf("chrome"), "browser");
+  assert.equal(appKindOf("discord"), "chat");
+  assert.equal(appKindOf("blender"), "creative");
+  assert.equal(appKindOf("notepad"), "");
+  assert.equal(friendship(10, "ru").name, "знакомые");
+  assert.equal(friendship(50, "ru").name, "близкие");
+  assert.equal(friendship(95, "en").name, "kindred spirits");
+  const s = { voiceMood: true, character: "cheerful" };
+  assert.equal(voiceTrigger(s, "sleepy"), "anim_say_soft");
+  assert.equal(voiceTrigger(s, "happy"), "anim_say_bright");
+  assert.equal(voiceTrigger(s, "calm"), "anim_say");
+  assert.equal(voiceTrigger({ ...s, voiceMood: false }, "sleepy"), "anim_say");
+  const got = ACHIEVEMENTS.filter((a) => a.need({ days: 8, pats: 120, found: 0, lateNights: 1, workHours: 5, musicHours: 0, wishes: 0, goals: 0, bond: 25 })).map((a) => a.id);
+  assert.deepEqual(got.sort(), ["days7", "friends", "night", "pats10", "pats100"]);
+  // a late hour after midnight counts past 24, the usual is the middle one
+  assert.equal(lateHour(new Date(2026, 0, 2, 1, 30)), 25.5);
+  assert.equal(median([23, 25, 24]), 24);
+});
+
+test("greetings: a date first, then a late arrival against your usual hour", () => {
+  const { greetingKey, soul } = internals;
+  const s = { birthday: "05-17" };
+  const at = (m, d, h) => new Date(2026, m - 1, d, h, 0).getTime();
+  Object.assign(soul, { greetDay: "", arrivals: {}, firstDay: "" });
+  assert.equal(greetingKey(s, "morning", at(12, 31, 10), "a", 10).key, "newYear");
+  Object.assign(soul, { greetDay: "" });
+  assert.equal(greetingKey(s, "morning", at(5, 17, 10), "b", 10).key, "birthday");
+  // usually at 9: arriving at 12 she was waiting
+  Object.assign(soul, { greetDay: "", arrivals: { d1: 9, d2: 9.2, d3: 8.8 } });
+  assert.equal(greetingKey(s, "morning", at(6, 3, 12), "c", 12).key, "waited");
+  Object.assign(soul, { greetDay: "", arrivals: { d1: 9, d2: 9.2, d3: 8.8 } });
+  assert.equal(greetingKey(s, "morning", at(6, 4, 9), "d", 9).key, "morning");
+  // a month since the first day
+  Object.assign(soul, { greetDay: "", arrivals: {}, firstDay: "2026-03-10" });
+  const g = greetingKey(s, "morning", at(4, 10, 10), "e", 10);
+  assert.deepEqual([g.key, g.vars?.months], ["anniversaryMonth", 1]);
+});
+
+test("her pack's block: things in her hands, her holding poses, the sky of the hour — through the hub", () => {
+  const { lifeBlock } = internals;
+  const pack = ["[states.idle]", "[[states.idle.variants]]", 'clip = "breathe"', "[states.drag]", 'clip = "d"', "[states.as_sleep]", 'clip = "z"', "",
+    "[effects.ambient]", 'kind = "emit"', "", "[interactions.none]", 'clip = "ambient"', ""].join("\n");
+  const all = lifeBlock(pack, { props: true, sky: true }, 23);
+  assert.deepEqual(all.names, ["cl_read", "cl_tea", "cl_hug", "cl_sky"]);
+  assert.equal(all.hub, "ambient");
+  assert.ok(all.rows.includes('[states.cl_tea]\nclip = "cl_hold"\nloop = true'));
+  assert.ok(all.rows.includes('[[clips]]\nname = "cl_hug"\nfile = "clips/companion-life/hug.vrma"'));
+  assert.ok(all.rows.includes('[effects.cl_read]\nkind = "contacts"\nprop = "cl_read"\npet_states = ["cl_read"]'));
+  assert.ok(!all.rows.includes("look"));
+  assert.ok(all.rows.includes('file = "clips/companion-life/star.png"'));
+  assert.ok(/\[effects\.cl_sky\][^]*pet_states = \["idle", "cl_read", "cl_tea", "cl_hug", "as_sleep"\]/.test(all.rows));
+  // morning: the engine's own sparkles; the afternoon: no sky
+  assert.ok(lifeBlock(pack, { props: false, sky: true }, 8).rows.includes('file = "builtin:nayu-anims/sparkle.png"'));
+  assert.deepEqual(lifeBlock(pack, { props: false, sky: true }, 14).names, []);
+  // no hub: nothing
+  assert.equal(lifeBlock(pack.replace("[interactions.none]", "[x]"), { props: true, sky: true }, 23).rows, "");
+});
+
+test("words: every situation of the second book in all three languages", () => {
+  const { PHRASES } = internals;
+  for (const key of ["hungry", "weatherSnow", "newYear", "app_code", "pomoBreak", "sulk", "dream", "wish_pat", "gift", "achievement", "levelUp", "water", "praised", "goalDone"]) {
+    for (const lang of ["ru", "en", "ja"]) assert.ok(PHRASES[lang][key]?.any?.length, `${lang}:${key}`);
+  }
+  for (const key of Object.keys(PHRASES.ru)) assert.ok(PHRASES.ja[key]?.any?.length, `ja:${key}`);
 });

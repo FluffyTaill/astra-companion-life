@@ -1,7 +1,7 @@
 [plugin]
 id = "companion-life"
 name = "Companion Life"
-version = "1.1.0"
+version = "1.2.0"
 description = "Your avatar lives a life of her own: needs and a mood that change through the day, pastimes she picks herself, rare words."
 author = "Taill"
 license = "MIT"
@@ -14,6 +14,7 @@ args = ["dist/index.js"]
 runtimes = ["node"]
 
 [capabilities]
+tools = true
 triggers = true
 ui_contributions = true
 
@@ -31,4 +32,5 @@ schema = "astra.bundle/2"
 target = "noarch"
 
 [permissions]
-fire_trigger = { reason = "Plays her pastimes and says her rare words through the two Astra commands the plugin page creates." }
+fire_trigger = { reason = "Plays her pastimes and says her rare words through the Astra commands the plugin page creates." }
+send_chat_message = { reason = "Optional: asks Astra for a short line in her voice now and then (off unless turned on)." }

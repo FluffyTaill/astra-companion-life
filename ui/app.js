@@ -67,6 +67,57 @@ const I18N = {
       sad: "gets sad", call: "calls you", snack: "a snack (12–14, 16–17, 20–21)" }
   }
 };
+// the rest of her life: friendship, the day, words, your programs, sharing
+Object.assign(I18N.ru, {
+  bond: "Отношения", bondNext: (n) => `до следующего уровня: ${n}`, bondTop: "самый близкий уровень",
+  stateLine: { hunger: "голод", restless: "непоседливость", hobby: "увлечение", wish: "хочет", sulk: "обиделась — погладь её", weather: "погода" },
+  skyKinds: { storm: "гроза", snow: "снег", rain: "дождь", clear: "ясно", cloud: "облачно" },
+  wishes: { pat: "чтобы погладили", music: "музыку", play: "поиграть", talk: "поболтать" },
+  ach: "Достижения", gifts: "Шкатулка подарков", giftsEmpty: "Пока пусто — она иногда дарит стишки и рисунки на память.",
+  totals: { pats: "погладили всего", found: "нашёл её в прятках", workMin: "вместе за работой" },
+  chart: "Две недели", chartHint: "Столбик — время за компьютером, точка — сколько раз погладили.",
+  day: "День", dayGoal: "Цель на день, часов работы", dayGoalOff: "0 — без цели", dayPlan: "План на сегодня", dayPlanPh: "например, доделать проект",
+  birthday: "Твой день рождения (ММ-ДД)", dnd: "Не мешать", dndOff: "Снять", dndUntil: (t) => `тишина до ${t}`,
+  pomo: "Помидор", pomoOn: "Таймер работа/отдых", pomoWork: "работа, мин", pomoRest: "отдых, мин",
+  pomoNow: (ph, m) => `${ph === "work" ? "работаем" : "перерыв"} — ещё ${m} мин`,
+  lang: "Язык её речи", langAuto: "как в Astra",
+  more: "Что она замечает", weather: "Погода влияет на настроение", apps: "Говорит о твоих программах", voiceMood: "Голос по настроению (тише, когда сонная; бодрее, когда рада)",
+  care: "Напоминает попить воды и дать отдых глазам", sky: "Небо по времени суток вокруг неё (искры утром, светлячки вечером, звёзды ночью)",
+  chatTone: "Чувствует тон твоих сообщений Astra (читает историю чата только на этом ПК, никуда не отправляет)",
+  aiWords: "Иногда просит ИИ Astra придумать ей фразу", aiNeedCatalog: "нужно разрешение на чат — оно есть только у плагина из каталога",
+  aiBlocked: (e) => `не вышло: ${e}`, applyPack: "Применить к персонажу", packPending: "изменение ждёт тихой минуты — или нажми «Применить»",
+  rulesApps: "Свои правила для программ", rulesAppsHint: "Если в названии окна или программы есть это слово — она скажет твою фразу (не чаще раза в час).",
+  ruleMatch: "слово, например, figma", ruleText: "что ей сказать", add: "Добавить", del: "✕",
+  custom: "Свои фразы", customHint: "Выбери ситуацию и впиши фразы, по одной в строке: она будет говорить их вперемешку со своими. {name} — твоё имя.",
+  save: "Сохранить", saved: "Сохранено",
+  share: "Поделиться настройками", shareHint: "Характер, фразы, правила, помидор и язык — без её воспоминаний.", exportBtn: "Экспорт", importBtn: "Импорт",
+  importPh: "вставь сюда JSON настроек", copied: "Скопировано"
+});
+Object.assign(I18N.en, {
+  bond: "Relationship", bondNext: (n) => `to the next level: ${n}`, bondTop: "the closest level",
+  stateLine: { hunger: "hunger", restless: "restlessness", hobby: "hobby", wish: "wants", sulk: "sulking — pat her", weather: "weather" },
+  skyKinds: { storm: "storm", snow: "snow", rain: "rain", clear: "clear", cloud: "cloudy" },
+  wishes: { pat: "pats", music: "music", play: "to play", talk: "to chat" },
+  ach: "Achievements", gifts: "Gift box", giftsEmpty: "Empty so far — now and then she gives little poems and drawings to keep.",
+  totals: { pats: "pats in all", found: "found her in hide and seek", workMin: "working together" },
+  chart: "Two weeks", chartHint: "A bar — time at the computer, a dot — how many pats.",
+  day: "The day", dayGoal: "A goal for the day, hours of work", dayGoalOff: "0 — no goal", dayPlan: "Today's plan", dayPlanPh: "e.g. finish the project",
+  birthday: "Your birthday (MM-DD)", dnd: "Do not disturb", dndOff: "End", dndUntil: (t) => `quiet until ${t}`,
+  pomo: "Tomato", pomoOn: "Work/rest timer", pomoWork: "work, min", pomoRest: "rest, min",
+  pomoNow: (ph, m) => `${ph === "work" ? "working" : "break"} — ${m} min left`,
+  lang: "The language she speaks", langAuto: "as in Astra",
+  more: "What she notices", weather: "The weather sways her mood", apps: "Talks about your programs", voiceMood: "Voice by mood (softer when sleepy, brighter when happy)",
+  care: "Reminds you to drink water and rest your eyes", sky: "The sky of the hour around her (sparkles in the morning, fireflies in the evening, stars at night)",
+  chatTone: "Feels the tone of your messages to Astra (reads the chat history on this PC only, sends nothing)",
+  aiWords: "Now and then asks Astra's AI to write her a line", aiNeedCatalog: "needs the chat permission — only the catalog version of the plugin has it",
+  aiBlocked: (e) => `didn't work: ${e}`, applyPack: "Apply to the character", packPending: "the change waits for a quiet minute — or press “Apply”",
+  rulesApps: "Your rules for programs", rulesAppsHint: "When a window or program name has this word, she says your line (at most once an hour).",
+  ruleMatch: "a word, e.g. figma", ruleText: "what she says", add: "Add", del: "✕",
+  custom: "Your own phrases", customHint: "Pick a situation and type phrases, one per line: she mixes them with her own. {name} is your name.",
+  save: "Save", saved: "Saved",
+  share: "Share settings", shareHint: "Character, phrases, rules, tomato timer and language — not her memories.", exportBtn: "Export", importBtn: "Import",
+  importPh: "paste the settings JSON here", copied: "Copied"
+});
 let lang = (() => {
   try { return localStorage.getItem("cl-lang") || (navigator.language || "ru").slice(0, 2); } catch { return "ru"; }
 })();
@@ -138,7 +189,7 @@ function soulCard() {
       <div class="row" style="margin-top:10px;justify-content:space-between">
         <span class="muted">${T("doing")}: ${esc(doing)}${N.doingAgo != null ? ` (${ago(N.doingAgo)} ${T("ago")})` : ""}
           · ${T("next")}: ${ago(N.nextIn)} · ${T("work")}: ${N.workingFor || 0} ${T("min")}</span>
-        <button class="btn" onclick="nudge()">${T("nudge")}</button></div>` : ""}
+        <button class="btn" onclick="nudge()">${T("nudge")}</button></div>${stateLine()}` : ""}
   </div>`;
 }
 
@@ -191,8 +242,137 @@ function diaryCard() {
   </div>`;
 }
 
+function bondCard() {
+  const L = st.level || {}, N = st.soul?.now || {}, A = st.achievements || [], G = st.gifts || [], TT = st.totals || {};
+  const bond = N.bond ?? 0, got = A.filter((a) => a.at);
+  const tot = T("totals");
+  return `<div class="card">
+    <h2>${T("bond")} <span class="muted">· ${esc(L.name || "")} · ${bond}/100</span></h2>
+    <div class="row" style="gap:4px;margin-bottom:6px">${(L.levels || []).map((n, k) => `<span class="chip ${k === L.index ? "on" : ""}" style="cursor:default">${esc(n)}</span>`).join("")}</div>
+    <div class="muted">${L.next != null ? T("bondNext")(L.next - bond) : T("bondTop")}
+      · ${tot.pats}: ${TT.pats ?? 0} · ${tot.found}: ${TT.found ?? 0} · ${tot.workMin}: ${min(Math.round(TT.workMin || 0))}</div>
+    <h2 style="margin-top:14px">${T("ach")} <span class="muted">· ${got.length}/${A.length}</span></h2>
+    <div class="row">${A.map((a) => `<span class="chip ${a.at ? "on" : ""}" style="cursor:default" title="${esc(a.at || "")}">${a.at ? "🏅" : "🔒"} ${esc(a.title)}</span>`).join("")}</div>
+    <h2 style="margin-top:14px">${T("gifts")}</h2>
+    ${G.length ? G.slice(0, 10).map((g) => `<div style="padding:6px 0;border-top:1px solid var(--line)"><span class="muted">${esc(g.day)}</span> — ${esc(g.text)}</div>`).join("")
+      : `<div class="muted">${T("giftsEmpty")}</div>`}
+  </div>`;
+}
+
+// a line under her needs: hunger, restlessness, hobby, wish, weather
+function stateLine() {
+  const L = T("stateLine"), W = st.weather || {};
+  const parts = [`${L.hunger}: ${st.hunger ?? "—"}`, `${L.restless}: ${st.restless ?? "—"}`];
+  if (st.hobby) parts.push(`${L.hobby}: ${esc(st.hobby)}`);
+  if (st.wish) parts.push(`${L.wish}: ${T("wishes")[st.wish] || esc(st.wish)}`);
+  if (W.kind) parts.push(`${L.weather}: ${T("skyKinds")[W.kind] || esc(W.kind)}, ${Math.round(W.temp)}°`);
+  if (st.sulk) parts.push(`😤 ${L.sulk}`);
+  return `<div class="muted" style="margin-top:6px">${parts.join(" · ")}</div>`;
+}
+
+function chartCard() {
+  const D = (st.diary || []).slice(0, 14).reverse();
+  if (D.length < 2) return "";
+  const W = 560, H = 120, bw = W / 14, top = Math.max(60, ...D.map((d) => d.work));
+  const topPats = Math.max(5, ...D.map((d) => d.pats));
+  const bars = D.map((d, k) => {
+    const h = Math.round((d.work / top) * (H - 24)), x = k * bw + 6, y = H - 16 - h;
+    const py = H - 16 - Math.round((d.pats / topPats) * (H - 24));
+    return `<rect x="${x}" y="${y}" width="${bw - 12}" height="${h}" rx="4" fill="var(--accent)" opacity=".75"><title>${esc(d.day)}: ${min(d.work)}, ♥ ${d.pats}</title></rect>
+      <circle cx="${x + (bw - 12) / 2}" cy="${py}" r="3.5" fill="var(--accent2)"/>
+      <text x="${x + (bw - 12) / 2}" y="${H - 3}" text-anchor="middle" font-size="10" fill="var(--muted)">${esc(d.day.slice(8))}</text>`;
+  }).join("");
+  return `<div class="card">
+    <h2>${T("chart")}</h2>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;height:auto">${bars}</svg>
+    <div class="muted">${T("chartHint")}</div>
+  </div>`;
+}
+
+function dayCard() {
+  const S = st.soul || {}, P = S.pomodoro || {}, now = Date.now();
+  const left = st.pomo ? Math.max(0, Math.ceil((st.pomo.until - now) / 60000)) : 0;
+  const dnd = S.dndUntil > now;
+  return `<div class="card">
+    <h2>${T("day")}</h2>
+    <div class="opts">
+      <div class="opt">${T("dayPlan")} <input class="text" style="width:240px" value="${esc(st.plan || "")}" placeholder="${esc(T("dayPlanPh"))}" onchange="setSoul({plan: this.value})"></div>
+      <div class="opt">${T("dayGoal")} <input class="text" style="width:64px" type="number" min="0" max="16" value="${S.goalHours || 0}" onchange="setSoul({goalHours: this.value})"> <span class="muted">${T("dayGoalOff")}</span></div>
+      <div class="opt">${T("birthday")} <input class="text" style="width:80px" value="${esc(S.birthday || "")}" placeholder="07-21" onchange="setSoul({birthday: this.value})"></div>
+    </div>
+    <div class="opts" style="margin-top:12px">
+      <div class="opt"><div class="switch ${P.on ? "on" : ""}" onclick="setSoul({pomodoro: {on: ${!P.on}}})"></div>${T("pomo")}: ${T("pomoOn")}
+        ${P.on ? `<input class="text" style="width:56px" type="number" min="5" max="120" value="${P.work}" onchange="setSoul({pomodoro: {work: this.value}})"> ${T("pomoWork")}
+          <input class="text" style="width:56px" type="number" min="1" max="60" value="${P.rest}" onchange="setSoul({pomodoro: {rest: this.value}})"> ${T("pomoRest")}` : ""}</div>
+      ${P.on && st.pomo ? `<span class="muted">🍅 ${T("pomoNow")(st.pomo.phase, left)}</span>` : ""}
+    </div>
+    <div class="row" style="margin-top:12px">${T("dnd")}:
+      ${[30, 60, 120].map((m) => `<button class="btn" onclick="quiet(${m})">${m < 60 ? `${m} ${T("min")}` : `${m / 60} ч`}</button>`).join("")}
+      ${dnd ? `<button class="btn" onclick="quiet(0)">${T("dndOff")}</button><span class="muted">🤫 ${T("dndUntil")(new Date(S.dndUntil).toLocaleTimeString().slice(0, 5))}</span>` : ""}</div>
+  </div>`;
+}
+
+function moreCard() {
+  const S = st.soul || {};
+  const sw = (k, label, extra = "") => `<div class="opt" style="width:100%"><div class="switch ${S[k] ? "on" : ""}" onclick="setSoul({${k}: ${!S[k]}})"></div>${label}${extra}</div>`;
+  const langs = ["auto", ...(st.langs || ["ru", "en", "ja"])];
+  const names = { auto: T("langAuto"), ru: "Русский", en: "English", ja: "日本語" };
+  const ai = !st.canAi ? ` <span class="muted">— ${T("aiNeedCatalog")}</span>` : st.aiBlocked ? ` <span class="muted">— ${esc(T("aiBlocked")(st.aiBlocked))}</span>` : "";
+  return `<div class="card">
+    <h2>${T("more")}</h2>
+    <div class="row" style="margin-bottom:10px">${T("lang")}
+      <select class="text" style="width:auto" onchange="setSoul({lang: this.value})">${langs.map((l) => `<option value="${l}" ${S.lang === l ? "selected" : ""}>${names[l] || l}</option>`).join("")}</select>
+      <button class="btn" onclick="tryIt('pat')">${T("tryIt")}</button></div>
+    <div class="opts" style="gap:10px">
+      ${sw("weather", T("weather"))}${sw("apps", T("apps"))}${sw("voiceMood", T("voiceMood"))}${sw("care", T("care"))}
+      ${sw("chatTone", T("chatTone"))}${sw("aiWords", T("aiWords"), ai)}
+      ${sw("sky", T("sky"))}
+    </div>
+    ${st.packPending ? `<div class="row" style="margin-top:10px"><span class="muted">${T("packPending")}</span><button class="btn apply dirty" onclick="applyPack()">${T("applyPack")}</button></div>` : ""}
+  </div>`;
+}
+
+function appRulesCard() {
+  const R = st.soul?.appRules || [];
+  return `<div class="card">
+    <h2>${T("rulesApps")}</h2>
+    <div class="muted" style="margin-bottom:10px">${T("rulesAppsHint")}</div>
+    ${R.map((r, k) => `<div class="row" style="margin-bottom:6px"><code>${esc(r.match)}</code> → <span>${esc(r.text)}</span>
+      <button class="btn danger" onclick="delRule(${k})">${T("del")}</button></div>`).join("")}
+    <div class="row"><input id="ruleMatch" class="text" style="width:180px" placeholder="${esc(T("ruleMatch"))}">
+      <input id="ruleText" class="text" style="flex:1;min-width:200px" placeholder="${esc(T("ruleText"))}">
+      <button class="btn" onclick="addRule()">${T("add")}</button></div>
+  </div>`;
+}
+
+let customKey = "pat";
+function customCard() {
+  const keys = st.keys || [], C = st.soul?.custom || {};
+  return `<div class="card">
+    <h2>${T("custom")}</h2>
+    <div class="muted" style="margin-bottom:10px">${esc(T("customHint"))}</div>
+    <div class="row" style="margin-bottom:8px">
+      <select class="text" style="width:auto" onchange="customKey = this.value; render()">${keys.map((k) => `<option value="${k}" ${k === customKey ? "selected" : ""}>${k}${C[k] ? ` (${C[k].length})` : ""}</option>`).join("")}</select>
+      <button class="btn" onclick="tryIt(customKey)">${T("tryIt")}</button></div>
+    <textarea id="customText" class="text" rows="4">${esc((C[customKey] || []).join("\n"))}</textarea>
+    <div class="row" style="margin-top:8px;justify-content:flex-end"><button class="btn primary" onclick="saveCustom()">${T("save")}</button></div>
+  </div>`;
+}
+
+let shareValue = "";
+function shareCard() {
+  return `<div class="card">
+    <h2>${T("share")}</h2>
+    <div class="muted" style="margin-bottom:10px">${T("shareHint")}</div>
+    <textarea id="shareText" class="text" rows="3" placeholder="${esc(T("importPh"))}" oninput="shareValue = this.value">${esc(shareValue)}</textarea>
+    <div class="row" style="margin-top:8px;justify-content:flex-end">
+      <button class="btn" onclick="exportSettings()">${T("exportBtn")}</button><button class="btn primary" onclick="importSettings()">${T("importBtn")}</button></div>
+  </div>`;
+}
+
 function pastimesCard() {
-  const P = st.pastimes || [];
+  // things in her hands are not part of the plugin yet
+  const P = (st.pastimes || []).filter((p) => !["read", "tea", "hug"].includes(p.id));
   return `<div class="card">
     <h2>${T("pastimes")}</h2>
     <div class="muted" style="margin-bottom:10px">${esc(T("pastimesHint").replace("{c}", st.character || "—"))}</div>
@@ -210,11 +390,55 @@ function render() {
   ${banner ? `<div class="${banner.cls}">${esc(banner.text)}</div>` : ""}
   ${!S.setup || cmdState() !== "ok" ? setupCard() : ""}
   ${soulCard()}
+  ${bondCard()}
+  ${dayCard()}
   ${characterCard()}
   ${rulesCard()}
+  ${moreCard()}
+  ${S.apps ? appRulesCard() : ""}
+  ${customCard()}
   ${S.play ? playCard() : ""}
+  ${chartCard()}
   ${diaryCard()}
-  ${pastimesCard()}`;
+  ${pastimesCard()}
+  ${shareCard()}`;
+}
+
+async function quiet(minutes) {
+  await call("quiet", { minutes });
+  await refresh();
+}
+async function applyPack() {
+  await call("applyPack");
+  await refresh();
+}
+async function addRule() {
+  const match = document.getElementById("ruleMatch").value.trim(), text = document.getElementById("ruleText").value.trim();
+  if (!match || !text) return;
+  await setSoul({ appRules: [...(st.soul.appRules || []), { match, text }] });
+}
+async function delRule(k) {
+  await setSoul({ appRules: (st.soul.appRules || []).filter((_, i) => i !== k) });
+}
+async function saveCustom() {
+  const custom = { ...(st.soul.custom || {}), [customKey]: document.getElementById("customText").value };
+  await setSoul({ custom });
+  toast(T("saved"));
+}
+async function exportSettings() {
+  const json = await call("exportSettings");
+  shareValue = json;
+  document.getElementById("shareText").value = json;
+  try { await navigator.clipboard.writeText(json); toast(T("copied")); } catch {}
+}
+async function importSettings() {
+  try {
+    await call("importSettings", { json: shareValue });
+    toast(T("saved"));
+    await refresh();
+  } catch (e) {
+    toast(e.message);
+  }
 }
 
 async function setSoul(patch) {
@@ -249,7 +473,7 @@ function toggleLang() {
 }
 // her needs change by themselves: the card follows them while the page is open
 setInterval(() => {
-  if (!st.soul?.on || document.hidden || document.querySelector("input:focus")) return;
+  if (!st.soul?.on || document.hidden || document.querySelector("input:focus, textarea:focus, select:focus")) return;
   call("soulNow").then((n) => { st.soul.now = n; render(); }).catch(() => {});
 }, 10000);
 
