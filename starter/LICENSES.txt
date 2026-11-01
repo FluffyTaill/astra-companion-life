@@ -1,0 +1,14 @@
+Companion Life — starter animations
+
+All files here are CC0 1.0 (public domain): free to use, change and share.
+
+ual2.glb
+  Universal Animation Library 2 [Standard] by Quaternius — CC0 1.0
+  https://quaternius.com/  ·  https://www.patreon.com/quaternius
+  The plugin uses its clips "Consume", "Idle_TalkingPhone_Loop" and "Idle_FoldArms_Loop".
+
+fm_hello.vrma, fm_smartphone.vrma, fm_drinkwater.vrma, fm_cheer.vrma
+  VRMA animation pack by へすい / rerofumi (@rerofumi) — CC0
+  (originals: 004_hello_1, 005_smartphone, 006_drinkwater, 007_gekirei)
+
+Astra's own clips (builtin:nayu-anims/idle_stretch.fbx, idle_shy.fbx) ship with Astra and are not here.

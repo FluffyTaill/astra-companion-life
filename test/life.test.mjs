@@ -8,6 +8,7 @@ import { test } from "node:test";
 
 const appdata = fs.mkdtempSync(path.join(os.tmpdir(), "companion-life-"));
 process.env.APPDATA = appdata; // read when the plugin module loads
+process.env.COMPANION_LIFE_DOCS = path.join(appdata, "docs"); // her backups and cards, not the real Documents
 fs.mkdirSync(path.join(appdata, "astra", "astra", "config", "logs"), { recursive: true });
 fs.writeFileSync(path.join(appdata, "astra", "astra", "config", "logs", "daemon.log.test"), "");
 const require = createRequire(import.meta.url);
@@ -34,8 +35,10 @@ test("needs drift into a mood, and a pastime suits the mood, the hour and what s
   for (let i = 0; i < 80; i++) ids.add(pickPastime("bored", c, have, {}, 0)?.id);
   assert.deepEqual([...ids].sort(), ["peek", "phone", "think"]);
   for (let i = 0; i < 30; i++) assert.notEqual(pickPastime("lonely", { ...c, here: false }, have, {}, 0).id, "call");
-  assert.equal(pickPastime("calm", { ...c, hour: 12 }, have, {}, 0).id, "snack");
-  assert.notEqual(pickPastime("calm", { ...c, hour: 12, snacks: ["d:1"] }, have, {}, 0)?.id, "snack");
+  // she eats by herself only when very hungry, or hungry while you are away long; feeding her is yours
+  assert.notEqual(pickPastime("calm", { ...c, hour: 12, hunger: 60 }, have, {}, 0)?.id, "snack");
+  assert.equal(pickPastime("calm", { ...c, hour: 12, hunger: 90 }, have, {}, 0).id, "snack");
+  assert.equal(pickPastime("calm", { ...c, here: false, away: true, hunger: 65 }, have, {}, 0).id, "snack");
   for (let i = 0; i < 30; i++) assert.notEqual(pickPastime("bored", c, have, { phone: 10 }, 0).id, "phone");
   // a nap only while you are away
   const sleepy = new Set(["yawn", "as_sleep"]);
@@ -230,4 +233,52 @@ test("her personality: traits drive her, her manner shapes her words, Astra's pe
   assert.equal(card.data.name, "Astra");
   assert.ok(/companion_mood/.test(card.data.system_prompt) && /ня/.test(card.data.system_prompt) && /Даня/.test(card.data.system_prompt));
   assert.ok(card.data.system_prompt.includes("You are Astra. Your character"));
+});
+
+test("feeding her: less hungry and happier, more for what she loves, refused when full, a sweet at night wakes her; a starter set fills only what her pack lacks", async () => {
+  const { cleanPersona, starterPlan, soul } = internals;
+  const { feedSoul, FOODS, foodTaste, STARTER } = await import("./.build/care.cjs");
+  const p = cleanPersona({ loves: "клубника, тортики", dislikes: "рамен" });
+  assert.equal(foodTaste("strawberry", p), 1);
+  assert.equal(foodTaste("cake", p), 1);
+  assert.equal(foodTaste("ramen", p), -1);
+  assert.equal(foodTaste("tea", p), 0);
+  const s = { hunger: 70, joy: 50, bond: 30, energy: 40 };
+  const r = feedSoul(s, "onigiri", p, 13);
+  assert.ok(r.ok && r.key === "fed" && s.hunger === 25 && s.joy === 58);
+  assert.equal(feedSoul({ ...s, hunger: 60 }, "strawberry", p, 13).key, "fedLove");
+  assert.equal(feedSoul({ ...s, hunger: 60 }, "ramen", p, 13).key, "fedDislike");
+  const night = { ...s, hunger: 60 };
+  assert.equal(feedSoul(night, "candy", p, 23).key, "fedNight");
+  assert.equal(night.energy, 55);
+  assert.deepEqual(feedSoul({ ...s, hunger: 5 }, "cake", p, 13), { ok: false, key: "full" });
+  assert.equal(Object.keys(FOODS).length >= 8, true);
+  // the starter set: only for pastimes her pack has nothing for, and only when switched on
+  const pack = ["[states.idle]", "[states.eat]", "[states.texting]", "[states.hello]"].join("\n");
+  assert.deepEqual(starterPlan(pack, { starter: false }), []);
+  const plan = starterPlan(pack, { starter: true }).map((e) => e.state);
+  assert.ok(!plan.includes("cl_eat") && !plan.includes("cl_texting") && !plan.includes("cl_hello"));
+  // without the download only Astra's own clips are there
+  assert.deepEqual(plan, STARTER.filter((e) => e.builtin).map((e) => e.state));
+});
+
+test("backups: a copy of her settings and memories in her Documents folder, brought back after a reinstall", () => {
+  const { backupNow, listBackups, restoreBackup, soul } = internals;
+  const settings = path.join(appdata, "astra", "astra", "config", "companion-life", "settings.json");
+  fs.mkdirSync(path.dirname(settings), { recursive: true });
+  fs.writeFileSync(settings, JSON.stringify({ name: "Даня", character: "shy" }));
+  soul.bond = 63;
+  soul.totals.fed = 7;
+  const file = backupNow();
+  assert.ok(file.startsWith(path.join(appdata, "docs", "backups")));
+  assert.equal(listBackups()[0].file, file);
+  // the app reinstalled: settings and memories gone
+  fs.writeFileSync(settings, JSON.stringify({ name: "" }));
+  soul.bond = 10;
+  soul.totals.fed = 0;
+  restoreBackup(file);
+  assert.equal(JSON.parse(fs.readFileSync(settings, "utf8")).name, "Даня");
+  assert.equal(soul.bond, 63);
+  assert.equal(soul.totals.fed, 7);
+  assert.throws(() => restoreBackup(settings));
 });

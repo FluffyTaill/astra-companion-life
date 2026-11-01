@@ -46,6 +46,21 @@
 - **Мини-игры:** прятки (выглядывает из-под края окна — наведи курсор, пока не спряталась) и «поймай сердечко»
   (наведи курсор, пока не улетело). Сама предлагает, когда скучает, не чаще раза в час; можно начать с её страницы.
 
+### Кормить её, стартовый набор, копии (1.4.0)
+
+- **Покормить:** на странице — печенька, онигири, клубника, тортик, рамен, яблоко, конфета, чай, клубничное молоко, сок.
+  Голод падает, она радуется; любимое (из «Любит» в её личности) радует сильнее, нелюбимое — ест через силу; сытая
+  отказывается; сладкое на ночь её бодрит. Иногда сама просит поесть — покормишь, и желание исполнено. Сама она ест,
+  только когда совсем проголодается или тебя долго нет. Достижения за кормление.
+- **Достижения скрыты,** пока не откроются.
+- **Стартовый набор анимаций:** если в наборе персонажа мало занятий, плагин добавит бесплатные — ест, пьёт, телефон,
+  «привет», «ура», скрещённые руки, потягивается, смущается — только то, чего в наборе ещё нет. Свободные (CC0:
+  Quaternius UAL2 и VRMA-пак rerofumi, папка [`starter/`](starter/LICENSES.txt)) скачиваются с GitHub плагина, два клипа
+  встроены в Astra. Для остального — ссылки (Mixamo, VRMA на BOOTH, Quaternius): их раздавать нельзя, каждый скачивает сам.
+- **Копии и восстановление:** раз в день всё — настройки, личность и её память (привязанность, дневник, достижения,
+  подарки, еда) — сохраняется в `Документы\Companion Life\backups` (последние 20). После переустановки Astra или плагина
+  страница сама предложит вернуть последнюю копию; любую можно вернуть кнопкой «Восстановить».
+
 ### Её личность (1.3.0)
 
 Вместо одного из пяти характеров — личность целиком, и она одна и та же в её поведении и в чате Astra.
@@ -138,7 +153,9 @@ joy) drift with time and with what happens, give her a mood, and for the mood, t
 picks herself something to do every few minutes from the states of her own animation pack — and now and then says a
 word in Astra's voice. The needs persist across restarts. Since 1.3.0 her personality is detailed rather than a preset —
 seven trait sliders, her day, likes, her speech, her story, how strongly she reacts — seeded from Astra's own AI personality and
-carried back to Astra's chat as a character card you import there. Since 1.2.0 also: hunger and restlessness, your habits and
+carried back to Astra's chat as a character card you import there. Since 1.4.0 you feed her (ten foods; what she loves pleases her
+more, she refuses when full), achievements stay hidden until unlocked, a starter set of free CC0 animations fills the pastimes
+her pack lacks, and a daily backup in Documents brings everything back after a reinstall. Since 1.2.0 also: hunger and restlessness, your habits and
 dates, the weather (Open-Meteo, with the location from Astra's weather settings), words about your programs and your own
 rules for them, a tomato timer, water and eye breaks, a daily goal and plan, sulking, hobbies, wishes, gifts, 16
 achievements, five friendship levels, the sky of the hour in her pack, a voice for the mood, Russian/English/Japanese,

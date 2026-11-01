@@ -270,5 +270,8 @@ export const ACHIEVEMENTS = [
   { id: "goal1", need: (t) => t.goals >= 1, ru: "Первая выполненная цель", en: "First goal done", ja: "はじめての目標達成" },
   { id: "friends", need: (t) => t.bond >= 20, ru: "Мы друзья", en: "We're friends", ja: "友だちになった" },
   { id: "best", need: (t) => t.bond >= 70, ru: "Лучшие друзья", en: "Best friends", ja: "親友になった" },
-  { id: "music10", need: (t) => t.musicHours >= 10, ru: "10 часов музыки", en: "10 hours of music", ja: "音楽10時間" }
+  { id: "music10", need: (t) => t.musicHours >= 10, ru: "10 часов музыки", en: "10 hours of music", ja: "音楽10時間" },
+  { id: "fed10", need: (t) => t.fed >= 10, ru: "Покормил 10 раз", en: "Fed her 10 times", ja: "10回ごはん" },
+  { id: "fed50", need: (t) => t.fed >= 50, ru: "Личный повар: 50 угощений", en: "Personal chef: 50 treats", ja: "専属シェフ：50回" },
+  { id: "favFood", need: (t) => t.fedLoved >= 1, ru: "Угадал любимое блюдо", en: "Guessed her favourite food", ja: "大好物を当てた" }
 ];

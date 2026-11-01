@@ -18,6 +18,7 @@ import { PHRASES, CHARACTERS, LANGS, phraseFor } from "./phrases";
 import { GIFTS, HOBBIES, LEVELS, ACHIEVEMENTS } from "./phrases2";
 import { TRAITS, REACTIONS, CHARACTER_TRAITS, cleanPersona, persFrom, chronoOf, timeOf, styleText, callName, reactionGroup,
   personaFromPrompt, characterCard } from "./persona";
+import { FOODS, feedSoul, STARTER, STARTER_BASE, STARTER_FILES, STARTER_LINKS } from "./care";
 // the sky around her (tools/gen_life_assets.py); the things she holds (book.glb, cup.glb, plush.glb, hold.vrma,
 // hug.vrma in assets/) are left out of the build until PROPS_READY
 import STAR_PNG from "../assets/star.png";
@@ -28,6 +29,8 @@ var PACK_ROOT = import_node_path.join(CFG, "companion", "pack");
 var DATA = import_node_path.join(CFG, "companion-life");
 var SETTINGS_FILE = import_node_path.join(DATA, "settings.json");
 var SOUL_FILE = import_node_path.join(DATA, "soul.json");
+// her folder in Documents (where a reinstall does not reach); a test points it elsewhere
+var DOCS = process.env.COMPANION_LIFE_DOCS || import_node_path.join(process.env.USERPROFILE || process.env.HOME || ".", "Documents", "Companion Life");
 var AWAY_SEC = 1200;
 var WORK_FLAG = import_node_path.join(process.env.APPDATA || "", "astra", "work_mode.on");
 var WORK_STATE = "as_work";
@@ -162,7 +165,7 @@ var soul = { energy: 80, boredom: 20, social: 60, joy: 60, bond: 10, at: 0, next
   diary: {}, firstDay: "", lastHere: 0, wasAway: false, awayFrom: 0, morningDay: "", diaryDay: "", lateAt: 0,
   typing: 0, typedAt: 0, stuckAt: 0, typeSaid: 0, gameFrom: 0, gameLast: 0, gameCheer: 0, questionAt: 0, playAt: 0,
   game: null, affectionAt: 0,
-  hunger: 30, restless: 20, totals: { pats: 0, found: 0, lateNights: 0, workMin: 0, musicMin: 0, wishes: 0, goals: 0 }, arrivals: {}, bedtimes: {},
+  hunger: 30, restless: 20, totals: { pats: 0, found: 0, lateNights: 0, workMin: 0, musicMin: 0, wishes: 0, goals: 0, fed: 0, fedLoved: 0 }, arrivals: {}, bedtimes: {},
   weather: { at: 0, kind: "", temp: 10 }, weatherSaid: "", app: { kind: "", since: 0 }, appSeen: {}, pomo: null, sulk: false, sulkAt: 0, noticedAt: 0,
   wish: null, wishAt: 0, gifts: [], giftAt: 0, ach: {}, level: 0, goalSaid: {}, plan: "", planDay: "", planAsked: 0, planAskedDay: "", planCheckDay: "",
   chatPos: {}, toneAt: 0, careAt: 0, careKind: "", callFrom: 0, wasMuted: false, loudAt: 0, batAt: 0, batLow: false, cleanupDay: "", bedSaid: "",
@@ -170,7 +173,7 @@ var soul = { energy: 80, boredom: 20, social: 60, joy: 60, bond: 10, at: 0, next
 var KEEP = ["energy", "boredom", "social", "joy", "bond", "at", "day", "snacks", "cool", "said", "activeSince", "breakAt",
   "diary", "firstDay", "lastHere", "morningDay", "diaryDay", "lateAt", "questionAt", "playAt", "affectionAt",
   "hunger", "restless", "totals", "arrivals", "bedtimes", "appSeen", "gifts", "giftAt", "ach", "level", "goalSaid", "plan", "planDay", "planAskedDay",
-  "planCheckDay", "careAt", "hobby", "hobbyDay", "wishAt", "aiAt", "lastDay", "lastActive", "greetDay", "cleanupDay", "bedSaid", "weatherSaid"];
+  "planCheckDay", "careAt", "hobby", "hobbyDay", "wishAt", "aiAt", "lastDay", "lastActive", "greetDay", "cleanupDay", "bedSaid", "weatherSaid", "backupDay"];
 
 function loadSoul() {
   try {
@@ -274,7 +277,8 @@ function pickPastime(mood, c, have, cool, now, rnd = Math.random, pers = PERSONA
     const use = stateFor(p, have);
     if (!use) continue;
     if (p.when && !p.when(c)) continue;
-    if (p.snack && !c.hungry && (!SNACK_HOURS.some(([a, b]) => hour >= a && hour < b) || c.snacks?.includes(`${c.day}:${hour < 15 ? 1 : hour < 18 ? 2 : 3}`))) continue;
+    // she eats by herself only when she is very hungry, or when you have been away a long while: feeding her is yours
+    if (p.snack && !(c.hunger > 85 || (c.away && c.hunger > 60))) continue;
     if (cool[p.id] > now) continue;
     // her character, her hobby and her restlessness weigh it too
     open.push({ ...p, use, w: p.moods[mood] * (pers.weights?.[p.id] ?? 1) * (c.boost?.[p.id] ?? 1) });
@@ -484,7 +488,8 @@ function friendship(bond, lang = "ru") {
 function totalsOf() {
   const t = soul.totals;
   return { days: soul.firstDay ? Math.floor((Date.now() - Date.parse(soul.firstDay)) / 86400000) + 1 : 1, pats: t.pats, found: t.found,
-    lateNights: t.lateNights, workHours: t.workMin / 60, musicHours: t.musicMin / 60, wishes: t.wishes, goals: t.goals, bond: soul.bond };
+    lateNights: t.lateNights, workHours: t.workMin / 60, musicHours: t.musicMin / 60, wishes: t.wishes, goals: t.goals, bond: soul.bond,
+    fed: t.fed || 0, fedLoved: t.fedLoved || 0 };
 }
 
 // a phrase to say a little later (a follow-up after a greeting, an achievement)
@@ -898,7 +903,7 @@ async function extrasTick(ctx, db, e) {
   // a wish now and then
   if (here && !soul.wish && mood !== "sleepy" && now - soul.wishAt > minutes(120, 200)) {
     soul.wishAt = now;
-    const kinds = ["pat", "talk", ...(s.play ? ["play"] : []), ...(e.music ? [] : ["music"])];
+    const kinds = ["pat", "talk", ...(s.play ? ["play"] : []), ...(e.music ? [] : ["music"]), ...(soul.hunger > 50 ? ["food", "food"] : [])];
     soul.wish = { kind: pick(kinds), until: now + 20 * 60000 };
     await say(ctx, db, `wish_${soul.wish.kind}`, { force: true });
     return true;
@@ -1005,9 +1010,18 @@ function idleClipOf(text) {
 // the block for this pack, the hour and the switches; "" when nothing is asked for or the pack has no hub
 function lifeBlock(text, s, hour) {
   const hub = hubOf(text), idle = idleClipOf(text);
-  if (!hub || !idle) return { rows: "", names: [] };
   const has = (st) => new RegExp(`^\\[states\\.${st}\\]`, "m").test(text);
   const L = [], names = [];
+  // the starter set: a clip and a state for each pastime her pack has nothing for
+  for (const e of starterPlan(text, s)) {
+    L.push("[[clips]]", `name = "${e.state}_clip"`, `file = "${e.builtin || `${LIFE_DIR}/starter/${e.file}`}"`);
+    if (e.source) L.push(`source = "${e.source}"`);
+    L.push("loop = false", "fade = 0.5", "", `[states.${e.state}]`, `clip = "${e.state}_clip"`, e.loopSecs ? "loop = true" : "loop = false");
+    L.push(`[[states.${e.state}.transitions]]`, e.loopSecs ? 'on = "idle_timeout"' : 'on = "clip_finished"', 'to = "idle"');
+    if (has("drag")) L.push(`[[states.${e.state}.transitions]]`, 'on = "dragged"', 'to = "drag"');
+    L.push("");
+  }
+  if (!hub || !idle) return { rows: L.join("\n"), names: [], hub: "" };
   const calm = ["idle", "cl_read", "cl_tea", "cl_hug", "as_sleep", "sit"].filter((x) => x.startsWith("cl_") ? s.props : has(x));
   if (s.props) {
     for (const pose of ["hold", "hug"]) L.push("[[clips]]", `name = "cl_${pose}"`, `file = "${LIFE_DIR}/${pose}.vrma"`, "fade = 0.8", "");
@@ -1069,6 +1083,13 @@ function writeLifeBlock(s, hour = new Date().getHours()) {
   if (rows) {
     const dir = import_node_path.join(import_node_path.dirname(f), ...LIFE_DIR.split("/"));
     import_node_fs.mkdirSync(dir, { recursive: true });
+    for (const f of STARTER_FILES) if (rows.includes(`${LIFE_DIR}/starter/${f}`)) {
+      const dst = import_node_path.join(dir, "starter", f);
+      if (!import_node_fs.existsSync(dst)) {
+        import_node_fs.mkdirSync(import_node_path.dirname(dst), { recursive: true });
+        import_node_fs.copyFileSync(import_node_path.join(STARTER_DIR, f), dst);
+      }
+    }
     // only the files the block names
     for (const [n, data] of Object.entries(LIFE_FILES)) {
       if (!rows.includes(`${LIFE_DIR}/${n}`)) continue;
@@ -1108,6 +1129,107 @@ async function lifePackTick(s, now, hour) {
   }
 }
 
+// ── feeding her ────────────────────────────────────────────────────────────────
+// From the page: a food, what it does to her (care.ts), her eating or drinking state when she is free,
+// and her words for it. A wish for food is granted by it.
+async function feed(ctx, id) {
+  const db = loadDb(), s = db.soul, hour = new Date().getHours();
+  if (!soul.at) loadSoul();
+  const r = feedSoul(soul, id, s.persona, hour);
+  const food = FOODS[id]?.[langOf(s)] || FOODS[id]?.en || id;
+  if (r.ok) {
+    soul.totals.fed = (soul.totals.fed || 0) + 1;
+    if (r.taste > 0) soul.totals.fedLoved = (soul.totals.fedLoved || 0) + 1;
+    const have = packStates();
+    const st = stateFor({ names: r.drink ? ["cl_drink", "drink", "drinking", "drinkwater", "eat", "consume"] : ["cl_eat", "eat", "eating", "snack", "consume"] }, have);
+    if (st && standing()) {
+      soul.doing = st;
+      soul.doingAt = Date.now();
+      await ctx.fireTrigger("anim_play", { state: st }).catch(() => {});
+    }
+  }
+  const mood = moodOf(soul);
+  const raw = phraseFor(langOf(s), r.key, s.character, { name: callName(s.persona, mood, s.name), food }, Math.random, s.custom?.[r.key]);
+  const text = styleText(raw, s.persona, mood);
+  if (s.talk && text) {
+    let trigger = voiceTrigger(s, mood);
+    if (trigger !== "anim_say" && ![...(ctx.activeTriggers || [])].some((a) => a === trigger || a === TRIGGER_PREFIX + trigger)) trigger = "anim_say";
+    await ctx.fireTrigger(trigger, { text }).catch(() => {});
+  }
+  let wish = false;
+  if (r.ok && soul.wish?.kind === "food") {
+    soul.wish = null;
+    soul.totals.wishes++;
+    wish = true;
+  }
+  saveSoul();
+  return { ok: r.ok, text, hunger: Math.round(soul.hunger), wish };
+}
+
+// ── backups: her settings and all her memories, kept where a reinstall does not reach ─
+// Documents\Companion Life\backups: one copy a day (the last 20 kept). On a fresh install with copies
+// there, the page offers the latest back, and no copy is made until you choose.
+var PLUGIN_VERSION = "1.4.0";
+var BACKUP_DIR = import_node_path.join(DOCS, "backups");
+var freshInstall = !import_node_fs.existsSync(SETTINGS_FILE) && !import_node_fs.existsSync(SOUL_FILE);
+function listBackups() {
+  try {
+    return import_node_fs.readdirSync(BACKUP_DIR).filter((f) => /^companion-life-.*\.json$/.test(f)).sort().reverse()
+      .map((f) => ({ file: import_node_path.join(BACKUP_DIR, f), name: f, size: import_node_fs.statSync(import_node_path.join(BACKUP_DIR, f)).size }));
+  } catch {
+    return [];
+  }
+}
+function backupNow(tag = "") {
+  saveSoul();
+  const read = (f) => {
+    try {
+      return JSON.parse(import_node_fs.readFileSync(f, "utf8"));
+    } catch {
+      return null;
+    }
+  };
+  const data = { app: "companion-life", version: PLUGIN_VERSION, at: new Date().toISOString(), settings: read(SETTINGS_FILE), soul: read(SOUL_FILE) };
+  import_node_fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  const file = import_node_path.join(BACKUP_DIR, `companion-life-${dayKey()}${tag ? `-${tag}` : ""}.json`);
+  import_node_fs.writeFileSync(file, JSON.stringify(data));
+  for (const old of listBackups().filter((b) => !/-before-restore/.test(b.name)).slice(20)) import_node_fs.rmSync(old.file, { force: true });
+  return file;
+}
+function restoreBackup(file) {
+  const data = JSON.parse(import_node_fs.readFileSync(file, "utf8"));
+  if (data?.app !== "companion-life" || !data.settings) throw new Error("not a Companion Life backup");
+  if (!freshInstall) backupNow("before-restore");
+  import_node_fs.mkdirSync(DATA, { recursive: true });
+  import_node_fs.writeFileSync(SETTINGS_FILE, JSON.stringify(data.settings, null, 2));
+  if (data.soul) import_node_fs.writeFileSync(SOUL_FILE, JSON.stringify(data.soul));
+  // her memories are read again on the next tick
+  soul.at = 0;
+  loadSoul();
+  freshInstall = false;
+  lifePack.dirty = true;
+  return true;
+}
+
+// ── a starter set of animations (care.ts): downloaded once into the plugin's folder, copied into her pack ─
+var STARTER_DIR = import_node_path.join(DATA, "starter");
+var starterReady = () => STARTER_FILES.every((f) => import_node_fs.existsSync(import_node_path.join(STARTER_DIR, f)));
+async function downloadStarter() {
+  import_node_fs.mkdirSync(STARTER_DIR, { recursive: true });
+  for (const f of STARTER_FILES) {
+    const r = await fetch(STARTER_BASE + f);
+    if (!r.ok) throw new Error(`${f}: ${r.status}`);
+    import_node_fs.writeFileSync(import_node_path.join(STARTER_DIR, f), Buffer.from(await r.arrayBuffer()));
+  }
+  return true;
+}
+// which starter states her pack would get: those whose pastime it has nothing for
+function starterPlan(text, s) {
+  if (!s.starter) return [];
+  const have = new Set([...text.matchAll(/^\[states\.([\w-]+)\]/gm)].map((m) => m[1]));
+  return STARTER.filter((e) => !stateFor({ names: e.fills }, have) && (e.builtin || starterReady()));
+}
+
 // ── Astra's personality ↔ hers ────────────────────────────────────────────────
 // Astra's AI personality (AI → Personality) is the system prompt in her settings; it is only read here.
 // Hers goes back to Astra's chat as a character card (Character Card V2) you import there.
@@ -1118,7 +1240,7 @@ function astraPrompt() {
     return "";
   }
 }
-var CARD_DIR = import_node_path.join(process.env.USERPROFILE || process.env.HOME || ".", "Documents", "Companion Life");
+var CARD_DIR = DOCS;
 function writeCard(s) {
   const lang = langOf(s) === "ru" ? "ru" : "en";
   const card = characterCard(s.persona, { name: s.name, lang, character: s.character });
@@ -1140,6 +1262,12 @@ async function soulTick(ctx) {
   }
   const pers = persOf(s);
   chrono = pers.chrono || "normal";
+  if (soul.at && soul.backupDay !== dayKey() && !(freshInstall && listBackups().length)) {
+    soul.backupDay = dayKey();
+    try {
+      backupNow();
+    } catch {}
+  }
   const now = Date.now(), d = new Date(), hour = d.getHours(), day = dayKey(d);
   if (!soul.at) {
     loadSoul();
@@ -1165,7 +1293,7 @@ async function soulTick(ctx) {
   // her hobby and her restlessness make some pastimes likelier; hunger opens a snack any time
   const boost = { ...(soul.hobby ? HOBBIES[soul.hobby.kind]?.pastimes : {}) };
   if (soul.restless > 70) for (const k of ["spin", "peek", "stretch", "yay"]) boost[k] = (boost[k] || 1) * 2;
-  const c = { hour, day, music, here, away, near: activity.over >= 10, asleep: dozing.on, snacks: soul.snacks, hungry: soul.hunger > 75, boost,
+  const c = { hour, day, music, here, away, near: activity.over >= 10, asleep: dozing.on, snacks: soul.snacks, hungry: soul.hunger > 75, hunger: soul.hunger, boost,
     weather: soul.weather?.kind || "" };
   driftSoul(soul, min, c, pers);
   if (ev.pat) {
@@ -1364,7 +1492,7 @@ async function soulTick(ctx) {
   if (p.snack) soul.snacks.push(`${day}:${hour < 15 ? 1 : hour < 18 ? 2 : 3}`);
   soul.boredom = clamp(soul.boredom - 25);
   soul.restless = clamp(soul.restless - (["spin", "peek", "stretch", "yay"].includes(p.id) ? 50 : 15));
-  if (p.snack) soul.hunger = clamp(soul.hunger - 60);
+  if (p.snack) soul.hunger = clamp(soul.hunger - 40);
   if (p.hold) soul.holding = now + minutes(0.4, 0.8);
   today.pastimes++;
   if (p.id === "call" || p.id === "heart") soul.social = clamp(soul.social + 5);
@@ -1561,6 +1689,20 @@ function getState(ctx) {
     hobby: soul.hobby ? HOBBIES[soul.hobby.kind]?.[lang] || soul.hobby.kind : "", wish: soul.wish?.kind || "", sulk: soul.sulk,
     pomo: soul.pomo, weather: soul.weather, sys, plan: soul.planDay === dayKey() ? soul.plan : "", aiBlocked: soul.aiBlocked,
     canAi: typeof ctx?.sendChatMessage === "function", packPending: lifePack.pending,
+    foods: Object.entries(FOODS).map(([id, f]) => ({ id, name: f[lang] || f.en, icon: f.icon, drink: !!f.drink })),
+    backups: listBackups().slice(0, 10), backupDir: BACKUP_DIR, restoreOffer: freshInstall ? listBackups()[0] || null : null,
+    starter: { on: !!db.soul.starter, ready: starterReady(), links: STARTER_LINKS.map((l) => ({ name: l.name, url: l.url, text: l[lang] || l.en })),
+      items: (() => {
+        const f = basePackFile();
+        let text = "";
+        try {
+          text = f ? import_node_fs.readFileSync(f, "utf8") : "";
+          const b = text.indexOf(LIFE_BEGIN);
+          if (b >= 0) text = text.slice(0, b);
+        } catch {}
+        const have = new Set([...text.matchAll(/^\[states\.([\w-]+)\]/gm)].map((m) => m[1]));
+        return STARTER.map((e) => ({ state: e.state, has: stateFor({ names: e.fills }, have) || "" }));
+      })() },
     persona: db.soul.persona || cleanPersona({}, db.soul.character), traits: TRAITS, reactions: REACTIONS, astraPrompt: astraPrompt().slice(0, 600), cardDir: CARD_DIR,
     keys: Object.keys(PHRASES.ru), usual: { arrive: median(Object.values(soul.arrivals).slice(-7)), bed: median(Object.values(soul.bedtimes).slice(-7)) } };
 }
@@ -1654,6 +1796,35 @@ export const app = plugin({
         soul.next = 0;
         return s;
       },
+      feed: async (p, ctx) => feed(ctx, String(p.food || "")),
+      backupNow: async () => backupNow(),
+      restoreBackup: async (p) => restoreBackup(String(p.file || "")),
+      dismissRestore: async () => {
+        freshInstall = false;
+        return true;
+      },
+      // a link from the page, in the default browser (only the starter set's own links)
+      openUrl: async (p) => {
+        const url = String(p.url || "");
+        if (!STARTER_LINKS.some((l) => l.url === url)) return false;
+        import_node_child_process.spawn("explorer.exe", [url], { detached: true, stdio: "ignore" }).unref();
+        return true;
+      },
+      openBackups: async () => {
+        import_node_fs.mkdirSync(BACKUP_DIR, { recursive: true });
+        import_node_child_process.spawn("explorer.exe", [BACKUP_DIR], { detached: true, stdio: "ignore" }).unref();
+        return true;
+      },
+      // the starter set: download (once), switch on, write into her pack, restart the avatar
+      starter: async (p) => {
+        const s = loadDb().soul;
+        if (p.on && !starterReady()) await downloadStarter();
+        s.starter = !!p.on;
+        saveSettings(s);
+        const changed = writeLifeBlock(s);
+        if (changed) await restartAvatar();
+        return { changed };
+      },
       // her personality: a patch of it (traits, reactions and calls merge)
       setPersona: async (p) => {
         const s = loadDb().soul, cur = s.persona || cleanPersona({}, s.character), patch = p.patch || {};
@@ -1734,7 +1905,7 @@ export const app = plugin({
   healthCheck: () => ({ healthy: true, status: "ok" })
 });
 // for test/*.test.mjs
-export const internals = { persOf, astraPrompt, cleanPersona, persFrom, styleText, callName, reactionGroup, personaFromPrompt, characterCard, chronoOf, PROPS_READY, moodOf, driftSoul, pickPastime, stateFor, bondAfterAbsence, quietNow, PASTIMES, PHRASES, CHARACTERS, phraseFor,
+export const internals = { feed, backupNow, listBackups, restoreBackup, starterPlan, persOf, astraPrompt, cleanPersona, persFrom, styleText, callName, reactionGroup, personaFromPrompt, characterCard, chronoOf, PROPS_READY, moodOf, driftSoul, pickPastime, stateFor, bondAfterAbsence, quietNow, PASTIMES, PHRASES, CHARACTERS, phraseFor,
   standing, soul, soulNow, soulTick, diaryToday, spanText, PERSONALITIES, activity: () => activity, appKindOf, friendship, greetingKey, lifeBlock,
   writeLifeBlock, voiceTrigger, langOf, ACHIEVEMENTS, LEVELS, HOBBIES, GIFTS, totalsOf, lateHour, median };
 if (require.main === module) app.run();

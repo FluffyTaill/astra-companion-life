@@ -4,6 +4,7 @@
 // has that character. `{name}` is how she calls you (left out, with its comma, when it is not set);
 // the diary's `{work}`, `{pats}`… are filled from the day.
 import { MORE } from "./phrases2";
+import { FOOD_PHRASES } from "./care";
 export const CHARACTERS = ["cheerful", "shy", "lazy", "energetic", "tsundere"];
 export const LANGS = ["ru", "en", "ja"];
 
@@ -262,7 +263,7 @@ export const PHRASES = {
 
 // the second book of her words joins the first; Japanese has only the second book's shape
 PHRASES.ja = {};
-for (const lang of LANGS) Object.assign(PHRASES[lang], MORE[lang] || {});
+for (const lang of LANGS) Object.assign(PHRASES[lang], MORE[lang] || {}, FOOD_PHRASES[lang] || {});
 
 // a phrase for `key`, her character's own more often than not; vars fill {name}, {hours}…
 // `extra`: your own phrases for the key (picked half the time when there are any)

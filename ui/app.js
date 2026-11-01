@@ -161,6 +161,35 @@ Object.assign(I18N.en, {
   card: "To Astra's chat", cardHint: "So that the built-in AI answers in her character: save the card and import it in Astra — AI → Personality → Import a character card. The card asks the AI to check her current mood (the companion_mood tool). Changed her personality — save and import again.",
   cardSave: "Save the card", cardSaved: (f) => `Saved: ${f}`, cardShow: "Show the file"
 });
+// feeding, the starter set, backups
+Object.assign(I18N.ru, {
+  feedTitle: "Покормить", feedHint: "Сама она ест, только когда совсем проголодается или тебя долго нет. Любимое (из «Любит» в её личности) радует сильнее, сытая откажется, сладкое на ночь её взбодрит.",
+  hungerNow: (h) => `голод: ${h}`, fullNow: "сытая",
+  achHidden: (n) => `ещё ${n} скрыто — откроются сами`, achNone: "Пока ни одного — они появятся здесь, когда откроются.",
+  starterTitle: "Стартовый набор анимаций", starterHint: "Если в наборе персонажа мало занятий, плагин добавит бесплатные: ест, пьёт, телефон, «привет», «ура», скрещённые руки, потягивается, смущается. Только то, чего в наборе ещё нет. Свободные (CC0) скачиваются с GitHub плагина, а две — встроенные в Astra. Аватар один раз перезапустится.",
+  starterOn: "Добавить стартовый набор", starterOff: "Убрать стартовый набор", starterBusy: "Скачиваю…", starterDone: "Готово — аватар перезапускается",
+  starterHas: (s) => `есть: ${s}`, starterAdd: "добавится", starterAdded: "добавлено",
+  starterState: { cl_eat: "ест", cl_drink: "пьёт", cl_texting: "в телефоне", cl_phone_call: "говорит по телефону", cl_hello: "машет «привет»", cl_yay: "«ура»", cl_fold_arms: "скрестила руки (обиды)", cl_stretch: "потягивается", cl_shy: "смущается" },
+  starterMore: "Где взять ещё (раздавать их нельзя — каждый скачивает сам):",
+  backupTitle: "Копии и восстановление", backupHint: "Раз в день плагин сохраняет всё — настройки, личность и её память (привязанность, дневник, достижения, подарки) — в папку, которую не трогает переустановка. После переустановки Astra или плагина нажми «Восстановить».",
+  backupNow: "Сделать копию сейчас", backupOpen: "Открыть папку", backupRestore: "Восстановить", backupNone: "Копий пока нет — первая появится сегодня.",
+  backupConfirm: "Вернуть всё как было в этой копии? Нынешнее состояние сначала сохранится отдельной копией.", backupDone: "Восстановлено",
+  restoreOffer: (d) => `Нашлась копия от ${d} — похоже, плагин переустановлен. Вернуть её настройки и память?`, restoreYes: "Восстановить", restoreNo: "Начать заново"
+});
+Object.assign(I18N.en, {
+  feedTitle: "Feed her", feedHint: "She eats by herself only when very hungry or when you have been away long. What she loves (from “Loves” in her personality) pleases her more, she refuses when full, a sweet at night wakes her up.",
+  hungerNow: (h) => `hunger: ${h}`, fullNow: "full",
+  achHidden: (n) => `${n} more hidden — they reveal themselves`, achNone: "None yet — they appear here once unlocked.",
+  starterTitle: "Starter animations", starterHint: "If the character's pack has few pastimes, the plugin adds free ones: eats, drinks, phone, waves hello, “yay”, folded arms, stretches, goes shy. Only what the pack does not have yet. Free (CC0) ones download from the plugin's GitHub, two are built into Astra. The avatar restarts once.",
+  starterOn: "Add the starter set", starterOff: "Remove the starter set", starterBusy: "Downloading…", starterDone: "Done — the avatar restarts",
+  starterHas: (s) => `has: ${s}`, starterAdd: "will be added", starterAdded: "added",
+  starterState: { cl_eat: "eats", cl_drink: "drinks", cl_texting: "on her phone", cl_phone_call: "phone call", cl_hello: "waves hello", cl_yay: "“yay”", cl_fold_arms: "folded arms (sulking)", cl_stretch: "stretches", cl_shy: "goes shy" },
+  starterMore: "Where to get more (these may not be shared — everyone downloads them):",
+  backupTitle: "Backups and restore", backupHint: "Once a day the plugin saves everything — settings, personality and her memory (attachment, diary, achievements, gifts) — to a folder a reinstall does not touch. After reinstalling Astra or the plugin, press “Restore”.",
+  backupNow: "Back up now", backupOpen: "Open the folder", backupRestore: "Restore", backupNone: "No backups yet — the first one appears today.",
+  backupConfirm: "Bring everything back as it was in this backup? The current state is saved as a separate backup first.", backupDone: "Restored",
+  restoreOffer: (d) => `Found a backup from ${d} — looks like the plugin was reinstalled. Bring back her settings and memory?`, restoreYes: "Restore", restoreNo: "Start fresh"
+});
 let lang = (() => {
   try { return localStorage.getItem("cl-lang") || (navigator.language || "ru").slice(0, 2); } catch { return "ru"; }
 })();
@@ -285,6 +314,56 @@ function diaryCard() {
   </div>`;
 }
 
+function feedCard() {
+  const F = st.foods || [], h = st.hunger ?? 0;
+  return `<div class="card">
+    <h2>${T("feedTitle")} <span class="muted">· ${h < 15 ? T("fullNow") : T("hungerNow")(h)}</span></h2>
+    <div class="muted" style="margin-bottom:10px">${T("feedHint")}</div>
+    <div class="row">${F.map((f) => `<button class="btn" onclick="feedHer('${f.id}')">${f.icon} ${esc(f.name)}</button>`).join("")}</div>
+  </div>`;
+}
+
+let starterBusy = false;
+function starterCard() {
+  const S = st.starter || {}, names = T("starterState");
+  const items = (S.items || []).map((i) => `<span class="chip ${i.has || S.on ? "on" : ""}" style="cursor:default">${esc(names[i.state] || i.state)}
+    <span class="muted">· ${i.has ? esc(T("starterHas")(i.has)) : S.on ? T("starterAdded") : T("starterAdd")}</span></span>`).join("");
+  return `<div class="card">
+    <h2>${T("starterTitle")}</h2>
+    <div class="muted" style="margin-bottom:10px">${T("starterHint")}</div>
+    <div class="row" style="margin-bottom:10px">${items}</div>
+    <div class="row"><button class="btn ${S.on ? "" : "primary"}" ${starterBusy ? "disabled" : ""} onclick="setStarter(${!S.on})">${starterBusy ? T("starterBusy") : S.on ? T("starterOff") : T("starterOn")}</button></div>
+    <div class="muted" style="margin:12px 0 6px">${T("starterMore")}</div>
+    ${(S.links || []).map((l) => `<div style="margin-bottom:6px"><a href="#" onclick="openLink(${JSON.stringify(l.url).replace(/"/g, "&quot;")}); return false">${esc(l.name)}</a> <span class="muted">— ${esc(l.text)}</span></div>`).join("")}
+  </div>`;
+}
+
+let confirmFile = "";
+function backupCard() {
+  const B = st.backups || [];
+  return `<div class="card">
+    <h2>${T("backupTitle")}</h2>
+    <div class="muted" style="margin-bottom:10px">${T("backupHint")}</div>
+    ${B.length ? B.map((b) => `<div class="row" style="justify-content:space-between;padding:6px 0;border-top:1px solid var(--line)">
+      <span>${esc(b.name.replace(/^companion-life-|\.json$/g, ""))} <span class="muted">· ${Math.max(1, Math.round(b.size / 1024))} KB</span></span>
+      ${confirmFile === b.file ? `<span class="row"><span class="muted" style="max-width:360px">${T("backupConfirm")}</span>
+        <button class="btn primary" onclick="restoreFrom(${JSON.stringify(b.file).replace(/"/g, "&quot;")}, true)">${T("backupRestore")}</button>
+        <button class="btn" onclick="confirmFile = ''; render()">✕</button></span>`
+      : `<button class="btn" onclick="confirmFile = ${JSON.stringify(b.file).replace(/"/g, "&quot;")}; render()">${T("backupRestore")}</button>`}</div>`).join("")
+      : `<div class="muted">${T("backupNone")}</div>`}
+    <div class="row" style="margin-top:10px;justify-content:flex-end"><button class="btn" onclick="openBackups()">${T("backupOpen")}</button><button class="btn primary" onclick="backupHer()">${T("backupNow")}</button></div>
+  </div>`;
+}
+
+function restoreBanner() {
+  const R = st.restoreOffer;
+  if (!R) return "";
+  const date = R.name.replace(/^companion-life-|\.json$/g, "");
+  return `<div class="notice"><div style="margin-bottom:8px">${esc(T("restoreOffer")(date))}</div>
+    <div class="row"><button class="btn primary" onclick="restoreFrom(${JSON.stringify(R.file).replace(/"/g, "&quot;")}, true)">${T("restoreYes")}</button>
+    <button class="btn" onclick="dismissRestore()">${T("restoreNo")}</button></div></div>`;
+}
+
 let cardFile = "";
 function personaCard() {
   const P = st.persona || {}, Tr = P.traits || {}, names = T("traitNames"), R = P.reactions || {}, C = P.calls || {};
@@ -361,8 +440,10 @@ function bondCard() {
     <div class="row" style="gap:4px;margin-bottom:6px">${(L.levels || []).map((n, k) => `<span class="chip ${k === L.index ? "on" : ""}" style="cursor:default">${esc(n)}</span>`).join("")}</div>
     <div class="muted">${L.next != null ? T("bondNext")(L.next - bond) : T("bondTop")}
       · ${tot.pats}: ${TT.pats ?? 0} · ${tot.found}: ${TT.found ?? 0} · ${tot.workMin}: ${min(Math.round(TT.workMin || 0))}</div>
-    <h2 style="margin-top:14px">${T("ach")} <span class="muted">· ${got.length}/${A.length}</span></h2>
-    <div class="row">${A.map((a) => `<span class="chip ${a.at ? "on" : ""}" style="cursor:default" title="${esc(a.at || "")}">${a.at ? "🏅" : "🔒"} ${esc(a.title)}</span>`).join("")}</div>
+    <h2 style="margin-top:14px">${T("ach")} <span class="muted">· ${got.length}</span></h2>
+    <div class="row">${got.map((a) => `<span class="chip on" style="cursor:default" title="${esc(a.at)}">🏅 ${esc(a.title)}</span>`).join("")}
+      ${got.length ? "" : `<span class="muted">${T("achNone")}</span>`}
+      ${A.length > got.length ? `<span class="muted">🔒 ${T("achHidden")(A.length - got.length)}</span>` : ""}</div>
     <h2 style="margin-top:14px">${T("gifts")}</h2>
     ${G.length ? G.slice(0, 10).map((g) => `<div style="padding:6px 0;border-top:1px solid var(--line)"><span class="muted">${esc(g.day)}</span> — ${esc(g.text)}</div>`).join("")
       : `<div class="muted">${T("giftsEmpty")}</div>`}
@@ -498,8 +579,10 @@ function render() {
     <div class="row"><button class="btn" onclick="toggleLang()">${lang === "ru" ? "EN" : "RU"}</button></div>
   </div>
   ${banner ? `<div class="${banner.cls}">${esc(banner.text)}</div>` : ""}
+  ${restoreBanner()}
   ${!S.setup || cmdState() !== "ok" ? setupCard() : ""}
   ${soulCard()}
+  ${feedCard()}
   ${bondCard()}
   ${dayCard()}
   ${characterCard()}
@@ -512,7 +595,48 @@ function render() {
   ${chartCard()}
   ${diaryCard()}
   ${pastimesCard()}
+  ${starterCard()}
+  ${backupCard()}
   ${shareCard()}`;
+}
+
+async function feedHer(food) {
+  const r = await call("feed", { food });
+  if (r?.text) toast(r.text);
+  st.hunger = r?.hunger ?? st.hunger;
+  render();
+}
+async function setStarter(on) {
+  starterBusy = true;
+  render();
+  try {
+    await call("starter", { on });
+    toast(T("starterDone"));
+  } catch (e) {
+    toast(e.message);
+  }
+  starterBusy = false;
+  await refresh();
+}
+async function backupHer() {
+  await call("backupNow");
+  await refresh();
+}
+async function openLink(url) {
+  await call("openUrl", { url });
+}
+async function openBackups() {
+  await call("openBackups");
+}
+async function restoreFrom(file) {
+  confirmFile = "";
+  await call("restoreBackup", { file });
+  toast(T("backupDone"));
+  await refresh();
+}
+async function dismissRestore() {
+  await call("dismissRestore");
+  await refresh();
 }
 
 async function setPersona(patch) {
